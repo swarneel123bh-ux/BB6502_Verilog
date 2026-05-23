@@ -1,9 +1,12 @@
 # ---- Paths ----
-RTL_DIR    := rtl
-CPU_DIR    := $(RTL_DIR)/verilog-65C02-microcode/generic
-TB_FILE    := $(RTL_DIR)/tb.v
-SW_DIR     := sw
-BUILD_DIR  := build
+RTL_DIR    		:= rtl
+CPU_DIR    		:= $(RTL_DIR)/verilog-65C02-microcode/generic
+TB_FILE    		:= $(RTL_DIR)/tb.v
+SW_DIR     		:= sw
+BUILD_DIR  		:= build
+DISK_DIR 			:= disk
+DISK_IMG 			:= $(BUILD_DIR)/disk.img
+DISK_SIZE_KB 	:= 1440
 
 # ---- Toolchain ----
 IVERILOG    := iverilog
@@ -44,9 +47,11 @@ CC65_FLAGS     := -Oir --cpu 65c02
 CA65_FLAGS     := --cpu 65c02
 LD65_FLAGS     := -C $(LINKER_CFG)
 
-.PHONY: all run clean
+.PHONY: all clean gpu run
 
-all: $(SIM_VVP) $(ROM_HEX) $(GPU_BIN)
+all: $(SIM_VVP) $(ROM_HEX) $(GPU_BIN) $(DISK_IMG)
+
+run: $(SIM_VVP) $(ROM_HEX) $(GPU_BIN) $(DISK_IMG)
 
 # Compile CPU + testbench into a vvp executable
 $(SIM_VVP): $(RTL_SRCS) | $(BUILD_DIR)
@@ -82,18 +87,36 @@ $(ROM_HEX): $(ROM_BIN)
 $(GPU_BIN): tools/gpu.c | $(BUILD_DIR)
 	$(CC) -O2 -Wall $(SDL_CFLAGS) -o $@ $< $(SDL_LDFLAGS)
 
-.PHONY: gpu
+# Build a FAT16 image from the host-side disk/ directory.
+# Uses mtools (mformat, mcopy) which work without root on macOS+Linux.
+$(DISK_IMG): $(shell find $(DISK_DIR) -type f 2>/dev/null) | $(BUILD_DIR)
+		@echo "Building disk image from $(DISK_DIR)/"
+		@dd if=/dev/zero of=$@ bs=1024 count=$(DISK_SIZE_KB) status=none
+		@mformat -i $@ -F ::
+		@if [ -d $(DISK_DIR) ] && [ "$$(ls -A $(DISK_DIR) 2>/dev/null)" ]; then \
+		  mcopy -i $@ -s $(DISK_DIR)/* ::; \
+		fi
+
 gpu: $(GPU_BIN)
-		@mkfifo /tmp/bb6502_gpu 2>/dev/null || true
-		$(GPU_BIN)
+	@mkfifo /tmp/bb6502_gpu 2>/dev/null || true
+	@mkfifo /tmp/bb6502_in  2>/dev/null || true
+	$(GPU_BIN)
+
+run: $(SIM_VVP) $(ROM_HEX) $(GPU_BIN)
+	@mkfifo /tmp/bb6502_gpu 2>/dev/null || true
+	@mkfifo /tmp/bb6502_in  2>/dev/null || true
+	@echo "Starting BB6502. Close the SDL window or press Ctrl-C to exit."
+	@$(GPU_BIN) & GPU_PID=$$!; \
+	 sleep 0.3; \
+	 $(VVP) $(SIM_VVP) & VVP_PID=$$!; \
+	 (sleep 0.5; echo "" > /tmp/bb6502_in) & \
+	 trap "kill $$GPU_PID $$VVP_PID 2>/dev/null; exit 0" EXIT INT TERM; \
+	 wait $$GPU_PID; \
+	 kill $$VVP_PID 2>/dev/null; \
+	 wait $$VVP_PID 2>/dev/null; true
 
 $(BUILD_DIR):
 	mkdir -p $@
-
-run: $(SIM_VVP) $(ROM_HEX)
-	@echo "Starting simulation. Feed input via: echo hello > /tmp/bb6502_in"
-	@echo "Press Ctrl-C to exit."
-	$(VVP) $(SIM_VVP)
 
 clean:
 	rm -rf $(BUILD_DIR)
