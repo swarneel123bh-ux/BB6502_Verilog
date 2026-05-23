@@ -1,0 +1,7 @@
+/build/
+*.vcd
+/op.txt
+.DS_Store
+.vscode/
+.idea/
+*.swp
