@@ -5,16 +5,16 @@ module tb;
   reg reset = 1;
   always #5 clk = ~clk;
 
+  // CPU interface
   wire [15:0] AD;
   wire        WE;
   wire [7:0]  DO;
   reg  [7:0]  DI;
   reg         IRQ = 0;
-  reg         NMI = 0;
+  reg         NMI = 1;          // active low — high when no interrupt
   reg         RDY = 1;
   wire        sync;
-  integer stdin_fd;
-  integer gpu_fd;
+  wire        VPB;
 
   cpu dut(
     .clk   (clk),
@@ -27,51 +27,88 @@ module tb;
     .IRQ   (IRQ),
     .NMI   (NMI),
     .RDY   (RDY),
+    .VPB   (VPB),
     .debug (1'b0)
   );
 
-  reg [7:0] ram [0:32767];
-  reg [7:0] rom [0:32511];
-
-  reg [7:0] acia_rx_data = 0;
-  reg       acia_rx_valid = 0;
-
-  // Register AD -> AB (Arlet's pattern)
+  // Register AD -> AB
   reg [15:0] AB;
   always @(posedge clk)
     if (RDY) AB <= AD;
 
-  // Synchronous read: DI valid one cycle after AD
-  always @(posedge clk) begin
-    if (RDY) begin
-      if (AD < 16'h8000)         DI <= ram[AD[14:0]];
-      else if (AD == 16'h8000)   DI <= acia_rx_data;
-      else if (AD == 16'h8001)   DI <= {7'b0, acia_rx_valid};
-      else if (AD >= 16'h8100)   DI <= rom[AD - 16'h8100];
-      else if (AD == 16'h8003)   DI <= 8'h01;   // GPU TX always ready
-      else                       DI <= 8'hFF;
-    end
+  // ---- MMU ----
+  localparam PPN_W = 3;                  // 8 physical pages = 32KB
+  wire [7:0]            mmu_data_out;
+  wire                  mmu_data_oe;
+  wire [11+PPN_W:0]     ram_paddr;       // physical address out of MMU
+  wire                  faultb;
+
+
+  mmu6502 #(.PPN_WIDTH(PPN_W)) mmu (
+    .phi2     (clk),
+    .resetb   (~reset),
+    .rwb      (~WE),
+    .vpb      (VPB),
+    .addr     (AB),
+    .data_in  (DO),
+    .data_out (mmu_data_out),
+    .data_oe  (mmu_data_oe),
+    .ram_addr (ram_paddr),
+    .faultb    (faultb)
+  );
+
+  // Connect fault -> NMI (active low; NMI=0 means "interrupt pending")
+  always @(posedge clk)
+    NMI <= ~faultb;	// NOTE: artlet's nmi is POSEDGE Triggered so we need to bar the bar again
+
+  // ---- Memory ----
+  reg [7:0] ram [0:32767];        // physical, 32KB
+  reg [7:0] rom [0:32511];        // $8100-$FFFF
+
+  // ---- ACIA + GPU state ----
+  reg [7:0] acia_rx_data = 0;
+  reg       acia_rx_valid = 0;
+
+  // Combinational read mux (async memory model)
+  always @(*) begin
+    if (AB[15] == 1'b0)
+      DI = ram[ram_paddr];                          // translated by MMU
+    else if ((AB & 16'hFFF0) == 16'h80F0)
+      DI = mmu_data_out;                            // MMU control regs
+    else if (AB == 16'h8000)
+      DI = acia_rx_data;
+    else if (AB == 16'h8001)
+      DI = {7'b0, acia_rx_valid};
+    else if (AB == 16'h8003)
+      DI = 8'h01;                                   // GPU TX always ready
+    else if (AB >= 16'h8100)
+      DI = rom[AB - 16'h8100];
+    else
+      DI = 8'hFF;
   end
 
-  // Write: registered AB, current WE/DO
+  // Writes (clocked)
+  integer gpu_fd, stdin_fd;
   always @(posedge clk) begin
     if (WE & RDY & ~reset) begin
-      if (AB < 16'h8000)        ram[AB[14:0]] <= DO;
-      else if (AB == 16'h8000)  $write("%c", DO);              // console TX
-      else if (AB == 16'h8002) begin                            // GPU TX
+      if (AB[15] == 1'b0)
+        ram[ram_paddr] <= DO;                       // translated
+      else if (AB == 16'h8000)
+        $write("%c", DO);
+      else if (AB == 16'h8002) begin
         $fwrite(gpu_fd, "%c", DO);
         $fflush(gpu_fd);
       end
+      // MMU control writes are consumed inside the MMU itself
     end
   end
 
   // Clear RX-valid after CPU reads data register
-  always @(posedge clk) begin
+  always @(posedge clk)
     if (~WE && AB == 16'h8000 && acia_rx_valid)
       acia_rx_valid <= 0;
-  end
 
-  // stdin polling
+  // stdin polling via FIFO
   integer ch;
   integer poll_counter = 0;
   always @(posedge clk) begin
@@ -81,7 +118,6 @@ module tb;
       if (!acia_rx_valid) begin
         ch = $fgetc(stdin_fd);
         if (ch != -1) begin
-          // $display("[tb] RX got 0x%02x", ch[7:0]);
           acia_rx_data  <= ch[7:0];
           acia_rx_valid <= 1;
         end
@@ -89,30 +125,26 @@ module tb;
     end
   end
 
+  // ---- Optional: log faults so we can see when the MMU traps ----
+  always @(posedge clk)
+    if (~faultb)
+      $display("[mmu] FAULT  AB=%04x  WE=%b  paddr=%05x",
+               AB, WE, ram_paddr);
 
   initial begin
     $dumpfile("trace.vcd");
     $dumpvars(0, tb);
     $readmemh("build/rom.hex", rom);
-    // File descriptor for the keyboard
+
     stdin_fd = $fopen("/tmp/bb6502_in", "r");
-    if (stdin_fd == 0) begin
-      $display("[tb] failed to open /tmp/bb6502_in");
-      $finish;
-    end
-    // File descriptor for the SDL process
-    gpu_fd = $fopen("/tmp/bb6502_gpu", "w");
-    if (gpu_fd == 0) begin
-      $display("[tb] failed to open /tmp/bb6502_gpu");
+    gpu_fd   = $fopen("/tmp/bb6502_gpu", "w");
+    if (stdin_fd == 0 || gpu_fd == 0) begin
+      $display("[tb] FIFO open failed");
       $finish;
     end
 
     reset = 1;
     repeat (16) @(posedge clk);
     reset = 0;
-
-    // #200_000;
-    // $display("\n[tb] timeout");
-    // $finish;
   end
 endmodule
