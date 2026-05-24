@@ -135,7 +135,7 @@ int main(void) {
 
   // Try executing a program at LBA 200 (HELLO.BBX MUST BE THERE)
   k_print("Loading a program from LBA200\n");
-  exec_bbx(200, 4);   // up to 4 sectors = 2KB
+  exec_bbx(200, 1);   // up to 4 sectors = 2KB
 
  	k_print("Program returned, hanging\n");
   while(1);
