@@ -133,8 +133,9 @@ int main(void) {
   	k_print("FAT boot signature MISSING\r\n");
   }
 
-  // Try executing a program at LBA 100 (HELLO.BBX MUST BE THERE)
-  exec_bbx(100, 4);   // up to 4 sectors = 2KB
+  // Try executing a program at LBA 200 (HELLO.BBX MUST BE THERE)
+  k_print("Loading a program from LBA200\n");
+  exec_bbx(200, 4);   // up to 4 sectors = 2KB
 
  	k_print("Program returned, hanging\n");
   while(1);

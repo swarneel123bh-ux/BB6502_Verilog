@@ -215,7 +215,7 @@ module tb;
     // $dumpvars(0, tb);
 
     // Rom Loading
-    $readmemh("build/rom.hex", rom);
+    $readmemh("build/bootrom.hex", rom);
 
     // I/O files loading
     stdin_fd = $fopen("/tmp/bb6502_in", "r");

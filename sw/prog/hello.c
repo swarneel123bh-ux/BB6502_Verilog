@@ -24,7 +24,6 @@ int main(void) {
 
 	for (i = 0; i < 10; ++i) {
 		p_print("Hello from user program!\r\n");
-  	p_print("Running at $1006.\r\n");
 	}
 
 	p_print("Bye Bye\n");

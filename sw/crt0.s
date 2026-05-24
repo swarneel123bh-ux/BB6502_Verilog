@@ -1,25 +1,25 @@
-.import _main        ; Tell the assembler 'main' is in another file
-.export __STARTUP__ : abs = 1
+.setcpu "65C02"
 .include "zeropage.inc"
 
+.import _main
+.export __STARTUP__ : abs = 1
+
+.segment "HDR"
+        .byte $42, $58            ; 'B','X'
+        .word $0200               ; load address
+        .word kentry              ; entry point ($0206 presumably)
+
 .segment "STARTUP"
-reset:
-    sei
-    cld
-    ldx #$ff
-    txs
-
-    ; Initialize cc65 software stack pointer
-    ; We'll put it at the top of our 32KB RAM ($7FFF)
-    lda #$ff
-    sta sp
-    lda #$7f
-    sta sp+1
-
-    jsr _main   ; Jump to your C main()
-    bra *				; Trap if main ever returns
-
-.segment "VECTORS"
-		.word 0         ; NMI
-		.word reset     ; Reset
-		.word 0         ; IRQ
+kentry:
+        sei
+        ldx #$ff
+        txs
+        cld
+        ; Init cc65 software stack to top of usable RAM
+        lda #$ff
+        sta sp
+        lda #$7e
+        sta sp+1
+        jsr _main
+forever:
+        bra forever
