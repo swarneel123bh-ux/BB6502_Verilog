@@ -109,7 +109,7 @@ run: $(SIM_VVP) $(ROM_HEX) $(GPU_BIN)
 	@$(GPU_BIN) & GPU_PID=$$!; \
 	 sleep 0.3; \
 	 $(VVP) $(SIM_VVP) & VVP_PID=$$!; \
-	 (sleep 0.5; echo "" > /tmp/bb6502_in) & \
+	 (sleep 0.5; echo "" > /tmp/bb6502_in) & \		# The sleeps make sure that the pipe is kept ope while simul starts up
 	 trap "kill $$GPU_PID $$VVP_PID 2>/dev/null; exit 0" EXIT INT TERM; \
 	 wait $$GPU_PID; \
 	 kill $$VVP_PID 2>/dev/null; \
@@ -120,3 +120,37 @@ $(BUILD_DIR):
 
 clean:
 	rm -rf $(BUILD_DIR)
+
+# ---- User programs rules ----
+PROG_DIR := sw/prog
+PROG_SRCS := $(PROG_DIR)/hello.c
+PROG_CRT0 := $(PROG_DIR)/prog_crt0.s
+PROG_CFG  := $(PROG_DIR)/prog.cfg
+PROG_BBX  := $(BUILD_DIR)/hello.bbx
+
+# Compile user-program .c through cc65 + ca65 to .o
+$(BUILD_DIR)/prog_%.o: $(PROG_DIR)/%.c | $(BUILD_DIR)
+	$(CC65) $(CC65_FLAGS) -o $(BUILD_DIR)/prog_$*.s $<
+	$(CA65) $(CA65_FLAGS) -o $@ $(BUILD_DIR)/prog_$*.s
+
+$(BUILD_DIR)/prog_crt0.o: $(PROG_CRT0) | $(BUILD_DIR)
+	$(CA65) $(CA65_FLAGS) -o $@ $<
+
+$(PROG_BBX): $(BUILD_DIR)/prog_crt0.o $(BUILD_DIR)/prog_hello.o $(PROG_CFG)
+	$(LD65) -C $(PROG_CFG) -o $@ $(BUILD_DIR)/prog_crt0.o $(BUILD_DIR)/prog_hello.o none.lib
+
+# Add the program to the disk image at a known LBA
+# Easiest way: just put it in the disk/ directory and let mtools place it,
+# then read its LBA from the disk after mkfs. But for fixed-LBA loading,
+# splice it directly into the image at byte offset = LBA * 512.
+
+PROG_LBA := 100		# Only for the test, we need to remove this later
+$(DISK_IMG): $(PROG_BBX)
+	@echo "Building disk image..."
+	@dd if=/dev/zero of=$@ bs=1024 count=$(DISK_SIZE_KB) status=none
+	@mformat -i $@ -F ::
+	@if [ -d $(DISK_DIR) ] && [ "$$(ls -A $(DISK_DIR) 2>/dev/null)" ]; then \
+	  mcopy -i $@ -s $(DISK_DIR)/* ::; \
+	fi
+	@echo "Placing $(PROG_BBX) at LBA $(PROG_LBA)"
+	@dd if=$(PROG_BBX) of=$@ bs=512 seek=$(PROG_LBA) conv=notrunc status=none

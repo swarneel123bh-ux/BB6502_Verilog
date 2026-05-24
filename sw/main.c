@@ -42,6 +42,62 @@ static void k_puthex(uint8_t b) {
 
 static uint8_t block_buf[BLOCK_SIZE];
 
+// Loads a program and executes it
+// Returns 0 on success, nonzero on error.
+// 'lba' is the disk LBA where the BBX file begins.
+// 'nblocks' is how many 512-byte blocks to read.
+static uint8_t exec_bbx(uint32_t lba, uint16_t nblocks) {
+  static uint8_t sector[512];
+  uint16_t load_addr;
+  uint16_t entry;
+  uint8_t* dest;
+  uint16_t i;
+  uint16_t b;
+
+  // Read first sector to validate header
+  if (block_read(lba, sector)) {
+    k_print("exec: block_read failed\r\n");
+    return 1;
+  }
+  if (sector[0] != 0x42 || sector[1] != 0x58) {
+    k_print("exec: bad BBX magic\r\n");
+    return 2;
+  }
+  load_addr = sector[2] | (sector[3] << 8);
+  entry     = sector[4] | (sector[5] << 8);
+
+  k_print("Loading at $");
+  k_puthex((uint8_t)(load_addr >> 8));
+  k_puthex((uint8_t)load_addr);
+  k_print(", entry $");
+  k_puthex((uint8_t)(entry >> 8));
+  k_puthex((uint8_t)entry);
+  k_print("\r\n");
+
+  // Copy first sector's worth of program data (bytes past header) to load_addr.
+  // BBX header is at the start of the file but is also part of the load image
+  // because HDR sits at load_addr in the linker config — so copy the whole sector.
+  dest = (uint8_t*)load_addr;
+  for (i = 0; i < 512; i++) dest[i] = sector[i];
+
+  // Copy remaining sectors
+  for (b = 1; b < nblocks; b++) {
+    if (block_read(lba + b, sector)) {
+      k_print("exec: read sector failed\r\n");
+      return 1;
+    }
+    for (i = 0; i < 512; i++)
+      dest[b * 512 + i] = sector[i];
+  }
+
+  k_print("Executing...\r\n");
+  // Call as a function pointer.
+  ((void (*)(void))entry)();
+
+  k_print("Returned from program.\r\n");
+  return 0;
+}
+
 int main(void) {
 	uint8_t i;
 
@@ -77,6 +133,10 @@ int main(void) {
   	k_print("FAT boot signature MISSING\r\n");
   }
 
+  // Try executing a program at LBA 100 (HELLO.BBX MUST BE THERE)
+  exec_bbx(100, 4);   // up to 4 sectors = 2KB
+
+ 	k_print("Program returned, hanging\n");
   while(1);
   return 0;
 }
