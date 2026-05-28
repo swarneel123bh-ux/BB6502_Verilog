@@ -67,6 +67,7 @@ GPU_BIN        := $(BUILD_DIR)/gpu
 KERNEL_CFG     := $(SW_DIR)/kernel.cfg
 KERNEL_OBJS := $(BUILD_DIR)/crt0.o \
                $(BUILD_DIR)/block.o \
+               $(BUILD_DIR)/memcpy512.o \
                $(BUILD_DIR)/main.o
 KERNEL_BBX     := $(BUILD_DIR)/kernel.bbx
 

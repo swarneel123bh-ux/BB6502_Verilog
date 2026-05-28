@@ -1,5 +1,11 @@
 #include <stdint.h>
+#include "fastmem.h"
 #include "block.h"
+
+/*#pragma bss-name(push, "ZEROPAGE")
+static uint8_t* src_ptr;
+static uint8_t* dst_ptr;
+#pragma bss-name(pop)*/
 
 // Registers
 #define ACIA_DATA   	((volatile unsigned char*)0x8000)
@@ -50,15 +56,18 @@ static uint8_t exec_bbx(uint32_t lba, uint16_t nblocks) {
   static uint8_t sector[512];
   uint16_t load_addr;
   uint16_t entry;
-  uint8_t* dest;
-  uint16_t i;
+  // uint8_t* dest;
+  // uint16_t i;
   uint16_t b;
 
   // Read first sector to validate header
+  k_print("R\n");
   if (block_read(lba, sector)) {
     k_print("exec: block_read failed\r\n");
     return 1;
   }
+  k_print("D\n");
+
   if (sector[0] != 0x42 || sector[1] != 0x58) {
     k_print("exec: bad BBX magic\r\n");
     return 2;
@@ -77,17 +86,28 @@ static uint8_t exec_bbx(uint32_t lba, uint16_t nblocks) {
   // Copy first sector's worth of program data (bytes past header) to load_addr.
   // BBX header is at the start of the file but is also part of the load image
   // because HDR sits at load_addr in the linker config — so copy the whole sector.
-  dest = (uint8_t*)load_addr;
-  for (i = 0; i < 512; i++) dest[i] = sector[i];
+
+
+  /*src_ptr = sector;
+  dst_ptr = (uint8_t*)load_addr;*/
+  memcpy512((void*)((uint8_t*)load_addr), (const void*)sector);
+
+  // THIS IS VERY VERY SLOW OPTIMIZE THIS COPYING (fastmem.h)
+  /*dest = (uint8_t*)load_addr;
+  for (i = 0; i < 512; i++) dest[i] = sector[i];*/
 
   // Copy remaining sectors
   for (b = 1; b < nblocks; b++) {
-    if (block_read(lba + b, sector)) {
+  	if (block_read(lba + b, sector)) {
       k_print("exec: read sector failed\r\n");
       return 1;
     }
-    for (i = 0; i < 512; i++)
-      dest[b * 512 + i] = sector[i];
+    /*for (i = 0; i < 512; i++)
+      dest[b * 512 + i] = sector[i];*/
+
+    /*src_ptr = sector;
+    dst_ptr = ((uint8_t*)load_addr) + ((uint16_t)b << 9);*/
+    memcpy512((void*)((uint8_t*)load_addr + ((uint16_t)b << 9)), (const void*)sector);
   }
 
   k_print("Executing...\r\n");

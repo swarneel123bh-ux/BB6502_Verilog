@@ -166,42 +166,29 @@ module tb;
   end
 
   // Clear RX-valid after CPU reads data register
-  always @(posedge clk)
-    if (~WE && AB == 16'h8000 && acia_rx_valid)
-      acia_rx_valid <= 0;
+  always @(posedge clk) begin
+    if (~WE && AB == 16'h8000 && acia_rx_valid) acia_rx_valid <= 0;
+  end
 
   // stdin polling via FIFO
   integer stdin_pos = 0;
   integer ch;
   integer poll_counter = 0;
-  /*always @(posedge clk) begin
+  always @(posedge clk) begin
     poll_counter <= poll_counter + 1;
     if (poll_counter >= 200) begin
       poll_counter <= 0;
-      if (!acia_rx_valid) begin
+      if (!acia_rx_valid && stdin_fd != 0) begin
+        $fseek(stdin_fd, stdin_pos, 0);  // SEEK_SET = 0; also clears EOF flag
         ch = $fgetc(stdin_fd);
         if (ch != -1) begin
           acia_rx_data  <= ch[7:0];
           acia_rx_valid <= 1;
+          stdin_pos = stdin_pos + 1;
         end
       end
     end
-    end*/
-    always @(posedge clk) begin
-      poll_counter <= poll_counter + 1;
-      if (poll_counter >= 200) begin
-        poll_counter <= 0;
-        if (!acia_rx_valid && stdin_fd != 0) begin
-          $fseek(stdin_fd, stdin_pos, 0);  // SEEK_SET = 0; also clears EOF flag
-          ch = $fgetc(stdin_fd);
-          if (ch != -1) begin
-            acia_rx_data  <= ch[7:0];
-            acia_rx_valid <= 1;
-            stdin_pos = stdin_pos + 1;
-          end
-        end
-      end
-    end
+  end
 
   // ---- Optional: log faults so we can see when the MMU traps ----
   always @(posedge clk)

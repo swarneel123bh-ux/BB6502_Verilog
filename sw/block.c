@@ -24,17 +24,42 @@ static void set_lba(uint32_t lba) {
   DISK_LBA3 = (uint8_t)(lba >> 24);
 }
 
+#pragma bss-name(push, "ZEROPAGE")
+static uint8_t* zp_ptr;
+#pragma bss-name(pop)
+
 uint8_t block_read(uint32_t lba, uint8_t* buf) {
-	uint16_t i;
-
   set_lba(lba);
-  DISK_CMD = CMD_READ;
-  while (DISK_STATUS & STATUS_BUSY);     // poll until done
-  if (DISK_STATUS & STATUS_ERR) return 1;
 
-  DISK_DPTR = 0;                          // reset pointer to 0
-  for (i = 0; i < BLOCK_SIZE; i++)
-    buf[i] = DISK_DATA;                   // auto-increments
+  DISK_CMD = CMD_READ;
+  while (DISK_STATUS & STATUS_BUSY);
+  if (DISK_STATUS & STATUS_ERR)
+    return 1;
+
+  DISK_DPTR = 0;
+  zp_ptr = buf;
+
+  asm(
+      "ldy #$00\n"
+      "ldx #$02\n"
+
+      "drain_pg:\n"
+
+      "lda $80E6\n"
+      "sta (_zp_ptr),y\n"
+
+      "iny\n"
+      "bne drain_pg\n"
+
+      "inc _zp_ptr+1\n"
+
+      "dex\n"
+      "bne drain_pg\n"
+
+      "dec _zp_ptr+1\n"
+      "dec _zp_ptr+1\n"
+  );
+
   return 0;
 }
 
