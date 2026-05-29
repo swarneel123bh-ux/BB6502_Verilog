@@ -33,9 +33,9 @@ BOOT_REC_LBA 	= 100			; BOOT RECORD MUST BE AT LBA100 ON THE DISK
 STAGE_ADDR		= $0200		; KERNEL MUST BE LOADED AT THIS ADDRESS
 
 .segment "VECTORS"
-				.word nmi_handler		; $FFFA
-				.word reset					; $FFFC
-				.word irq_handler		; $FFFE
+				.word nmi_handler				; $FFFA
+				.word reset							; $FFFC
+				.word brk_trampoline		; $FFFE
 
 .segment "CODE"
 nmi_handler:
@@ -47,6 +47,13 @@ reset:
 				cld
 				ldx #$ff
 				txs
+
+				; Default brk handler
+				; Before the kernel can install its own
+				lda #<early_brk
+				sta $FE						; brk_handler needs to go into $FF/$FE
+				lda #>early_brk
+				sta $FF
 
 				jsr puts_inline
 				.byte "BB6502 boot ROM", $0d, $0a, 0
@@ -276,3 +283,16 @@ puts_inline:
 
 halt:
 				bra halt
+
+; ============================================================
+;  BRK trampoline: jumps through user-supplied vector at $FE/$FF.
+;  Kernel writes its real handler address here at boot.
+;  Also used for IRQ (same vector on 6502).
+; ============================================================
+brk_trampoline:
+        jmp ($00FE)
+
+
+; Avoid early brk trigger by simply returning from interrupts
+early_brk:
+				rti
