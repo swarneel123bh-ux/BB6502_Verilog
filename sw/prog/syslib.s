@@ -63,8 +63,8 @@ _sys_getc:
 ; cc65 passes pointer in A/X
 ; ------------------------------------------------------------
 _sys_puts:
-    sta $22
-    stx $23
+    sta SYS_ARG0_LO
+    stx SYS_ARG0_HI
     brk
     .byte 4
     rts
