@@ -1,7 +1,7 @@
 #include <stdint.h>
-#include "block.h"
-#include "exec.h"
-#include "kernel.h"
+#include "include/block.h"
+#include "include/exec.h"
+#include "include/kernel.h"
 
 // Syscall ABI in zero page
 #define SYS_NUM_PTR   (*(volatile uint8_t*)0x30)
@@ -37,7 +37,6 @@ enum {
 };
 
 static void do_exit(void) {
-  // Halt the system. Disable interrupts, spin.
   __asm__("sei");
   while (1);
 }
@@ -45,12 +44,7 @@ static void do_exit(void) {
 static void do_putc(void) {
 	k_putc(SYS_A_REG);
 	k_gputc(SYS_A_REG);
-	/*uint8_t c = SYS_A_REG;
-  while (!(ACIA_STATUS & 0x01));
-  ACIA_DATA = c;
-  while (!(GPU_STATUS & 0x01));
-  GPU_DATA = c;
-  */SYS_RET = 0;
+  SYS_RET = 0;
 }
 
 // ?? UNIMPLEMENTED K_EQUIVALENT
@@ -62,20 +56,11 @@ static void do_getc(void) {
 
 static void do_puts(void) {
 	k_print((uint8_t*)(SYS_ARG0_LO | (SYS_ARG0_HI << 8)));
-  /*uint8_t* p = (uint8_t*)(SYS_ARG0_LO | (SYS_ARG0_HI << 8));
-  while (*p) {
-    while (!(ACIA_STATUS & 0x01));
-    ACIA_DATA = *p;
-    while (!(GPU_STATUS & 0x01));
-    GPU_DATA = *p;
-    p++;
-  }
-  */SYS_RET = 0;
+  SYS_RET = 0;
 }
 
 static void do_block_read(void) {
   uint32_t lba = SYS_ARG0_LO | (SYS_ARG0_HI << 8);
-  // For now LBA is 16-bit (good for 32MB of disk). Extend later.
   uint8_t* buf = (uint8_t*)(SYS_ARG1_LO | (SYS_ARG1_HI << 8));
   SYS_RET = block_read(lba, buf);
 }
@@ -92,8 +77,6 @@ static void do_exec(void) {
   uint32_t lba = SYS_ARG0_LO | (SYS_ARG0_HI << 8);
   uint16_t nblocks = SYS_ARG1_LO | (SYS_ARG1_HI << 8);
   SYS_RET = exec_bbx(lba, nblocks);
-  // exec_bbx normally doesn't return (program runs to completion via halt).
-  // If we get here, something failed.
 }
 
 static void do_getc_nb(void) {

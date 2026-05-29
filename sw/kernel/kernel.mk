@@ -4,6 +4,7 @@ include $(ROOT)/common.mk
 
 BOOT_DIR    := ../boot
 
+KERNEL_SRC  := ./src
 KERNEL_CFG  := kernel.cfg
 KERNEL_OBJS := $(BUILD_DIR)/crt0.o \
                $(BUILD_DIR)/block.o \
@@ -23,11 +24,11 @@ KERNEL_SIZE_FN = $(shell echo $$(( ($$(stat -f%z $(KERNEL_BBX) 2>/dev/null || st
 
 all: $(KERNEL_BBX) $(BOOT_HEX) $(BOOT_REC_BIN)
 
-$(BUILD_DIR)/%.s: %.c | $(BUILD_DIR)
+$(BUILD_DIR)/%.s: $(KERNEL_SRC)/%.c | $(BUILD_DIR)
 	$(CC65) $(CC65_FLAGS) -o $@ $<
 $(BUILD_DIR)/%.o: $(BUILD_DIR)/%.s | $(BUILD_DIR)
 	$(CA65) $(CA65_FLAGS) -o $@ $<
-$(BUILD_DIR)/%.o: %.s | $(BUILD_DIR)
+$(BUILD_DIR)/%.o: $(KERNEL_SRC)/%.s | $(BUILD_DIR)
 	$(CA65) $(CA65_FLAGS) -o $@ $<
 
 $(KERNEL_BBX): $(KERNEL_OBJS) $(KERNEL_CFG)

@@ -1,21 +1,5 @@
 .setcpu "65C02"
-
-; ---- Required Hardware Addresses ----
-; ACIA (UART)
-ACIA_DATA    	= $8000
-ACIA_STATUS  	= $8001
-; GPU (COPROCESSOR)
-GPU_DATA			= $8002
-GPU_STATUS		= $8003
-; DISK (SDCARD MODULE)
-DISK_LBA0    	= $80E0
-DISK_LBA1    	= $80E1
-DISK_LBA2    	= $80E2
-DISK_LBA3    	= $80E3
-DISK_CMD     	= $80E4
-DISK_STATUS  	= $80E5
-DISK_DATA    	= $80E6
-DISK_DPTR    	= $80E7
+.include "../devices.s"
 
 ; ------ Commands ------
 CMD_READ 		= $01

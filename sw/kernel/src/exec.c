@@ -1,8 +1,8 @@
 #include <stdint.h>
-#include "fastmem.h"
-#include "kernel.h"
-#include "exec.h"
-#include "block.h"
+#include "include/fastmem.h"
+#include "include/kernel.h"
+#include "include/exec.h"
+#include "include/block.h"
 
 // Loads a program and executes it
 // Returns 0 on success, nonzero on error.

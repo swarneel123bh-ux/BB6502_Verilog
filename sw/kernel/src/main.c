@@ -1,19 +1,8 @@
 #include <stdint.h>
-#include "kernel.h"
-#include "block.h"
-#include "exec.h"
-
-// Registers
-#define ACIA_DATA   	((volatile unsigned char*)0x8000)
-#define ACIA_STATUS 	((volatile unsigned char*)0x8001)
-#define GPU_DATA    	((volatile unsigned char*)0x8002)
-#define GPU_STATUS    ((volatile unsigned char*)0x8003)
-
-// MMU Registers
-#define MMU_PPN0     ((volatile unsigned char*)0x80F0)
-#define MMU_PPN1     ((volatile unsigned char*)0x80F1)
-#define MMU_W        ((volatile unsigned char*)0x80F8)
-#define MMU_U        ((volatile unsigned char*)0x80F9)
+#include "include/kernel.h"
+#include "include/block.h"
+#include "include/exec.h"
+#include "include/devices.h"
 
 
 void k_putc(char c) {
