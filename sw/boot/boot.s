@@ -14,17 +14,21 @@ ZP_COUNT 			= $02			; 2 bytes
 ZP_LBA 				= $04			; 4 bytes
 
 ; Persistent ZP (basically using the same addr everywhere)
+ZP_CURR_PROC_PTR      = $51
 ZP_CURR_PROC_MMU_PPN0 = $53
 
 BOOT_REC_LBA 	= 100			; BOOT RECORD MUST BE AT LBA100 ON THE DISK
 STAGE_ADDR		= $0200		; KERNEL MUST BE LOADED AT THIS ADDRESS
 
 .segment "VECTORS"
-				.word nmi_handler				; $FFFA
-				.word reset							; $FFFC
-				.word brk_trampoline		; $FFFE
+				.word yield_rti_trampoline					; $FFF8
+				.word nmi_handler										; $FFFA
+				.word reset													; $FFFC
+				.word brk_trampoline								; $FFFE
 
 .segment "CODE"
+yield_rti_trampoline:
+				jmp yield_rti
 nmi_handler:
 irq_handler:
 				rti
@@ -303,7 +307,7 @@ brk_trampoline:
 ; This is here because we need it to be accessible anywhere without
 ; remapping hardware page table entry 0
 ; ============================================================
-.export yield_rti
+; .export yield_rti
 yield_rti:
 				ldy #14
 				lda (ZP_CURR_PROC_PTR),y

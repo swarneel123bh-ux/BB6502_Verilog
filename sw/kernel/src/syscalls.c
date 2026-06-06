@@ -1,6 +1,5 @@
 #include <stdint.h>
 #include "include/block.h"
-#include "include/exec.h"
 #include "include/kernel.h"
 
 // Syscall ABI in zero page
@@ -24,7 +23,7 @@
 
 // Syscall numbers
 enum {
-	SYS_YIELD				 		= 0,
+	SYS_YIELD				 		= 0,	// Managed completely in yield.s + other files, no need to expose
 	SYS_EXIT         		= 1,
   SYS_PUTC         		= 2,
   SYS_GETC         		= 3,
@@ -45,9 +44,6 @@ static void do_exit(void) {
 	__asm__("sei");
   while (1);
 }
-
-// Defined in yield.s
-extern void do_yield(void);
 
 static void do_putc(void) {
 	k_putc(SYS_A_REG);
@@ -79,15 +75,6 @@ static void do_block_write(void) {
   SYS_RET = block_write(lba, buf);
 }
 
-// NEEDS REDEFINITION AFTER PROCESSES ARE INCORPORATED
-extern uint8_t exec_bbx(uint32_t lba, uint16_t nblocks);
-
-static void do_exec(void) {
-  uint32_t lba = SYS_ARG0_LO | (SYS_ARG0_HI << 8);
-  uint16_t nblocks = SYS_ARG1_LO | (SYS_ARG1_HI << 8);
-  SYS_RET = exec_bbx(lba, nblocks);
-}
-
 static void do_getc_nb(void) {
   if (ACIA_STATUS & 0x01) {
     SYS_A_REG = ACIA_DATA;
@@ -102,20 +89,14 @@ static void do_enosys(void) {
   SYS_RET = ENOSYS;
 }
 
-static void do_process_create() {
-
-}
-
 void syscall_dispatch(void) {
   switch (SYS_NUM) {
-   	case SYS_YIELD:				 do_yield();			 break;
   	case SYS_EXIT:         do_exit();        break;
     case SYS_PUTC:         do_putc();        break;
     case SYS_GETC:         do_getc();        break;
     case SYS_PUTS:         do_puts();        break;
     case SYS_BLOCK_READ:   do_block_read();  break;
     case SYS_BLOCK_WRITE:  do_block_write(); break;
-    case SYS_EXEC:         do_exec();        break;
     case SYS_GETC_NB:      do_getc_nb();     break;
     case SYS_OPEN_FAT:
     case SYS_READ_FAT:     do_enosys();      break;

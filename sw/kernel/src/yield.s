@@ -1,7 +1,7 @@
 .import _plist
 .import _plist_idx
 .import _schedule_process
-.import yield_rti
+; .import yield_rti
 .include "../devices.s"
 
 ; Process states
@@ -18,6 +18,9 @@ PROC_OFF_PPN0       = 14    ; ppn_table[0..7] -> 14..21
 ; TODO: move all explicit ZP pointers into a shared include
 ZP_CURR_PROC_PTR    	= $51
 ZP_CURR_PROC_MMU_PPN0 = $53
+
+; yield_rti address, so that we can simply jump (is in ROM)
+yield_rti = $FFF8
 
 .segment "CODE"
 .export do_yield
@@ -143,3 +146,41 @@ calc_proc_ptr:
   adc #0              ; propagate carry from low-byte add
   sta ZP_CURR_PROC_PTR+1
   rts
+
+; Starts proc0 for test
+; Later will start the main shell
+.export _sched_start
+_sched_start:
+  stz _plist_idx
+  lda #$ff
+  sta MMU_UBITS          ; let user reach all 8 virtual pages (its own phys pages)
+  sta MMU_WBITS
+  jsr calc_proc_ptr       ; ZP_CURR_PROC_PTR = &plist[0]
+  ldy #PROC_OFF_STATE
+  lda #PROC_STATE_RUNNING
+  sta (ZP_CURR_PROC_PTR),y
+  ldy #PROC_OFF_SP
+  lda (ZP_CURR_PROC_PTR),y
+  tax                     ; X = saved SP (yield_rti does txs)
+  ldy #15                 ; ppn[1] (ppn[0] is restored by yield_rti)
+  lda (ZP_CURR_PROC_PTR),y
+  sta MMU_PPN1
+  iny
+  lda (ZP_CURR_PROC_PTR),y
+  sta MMU_PPN2
+  iny
+  lda (ZP_CURR_PROC_PTR),y
+  sta MMU_PPN3
+  iny
+  lda (ZP_CURR_PROC_PTR),y
+  sta MMU_PPN4
+  iny
+  lda (ZP_CURR_PROC_PTR),y
+  sta MMU_PPN5
+  iny
+  lda (ZP_CURR_PROC_PTR),y
+  sta MMU_PPN6
+  iny
+  lda (ZP_CURR_PROC_PTR),y
+  sta MMU_PPN7
+  jmp yield_rti

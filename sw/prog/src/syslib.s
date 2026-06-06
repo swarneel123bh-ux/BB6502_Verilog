@@ -1,3 +1,4 @@
+.export _sys_yield
 .export _sys_exit
 .export _sys_putc
 .export _sys_getc
@@ -29,7 +30,7 @@ _sys_exit:
     jmp @hang
 
 ; ------------------------------------------------------------
-; void sys_yield(uint8_t code)
+; void sys_yield(void)
 ; ------------------------------------------------------------
 _sys_yield:
 		brk

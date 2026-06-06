@@ -18,13 +18,16 @@ typedef struct process_struct {
   uint8_t _pad[10];             // pad to 32
 } PROCESS;
 // typedef char _proc_size_check[(sizeof(PROCESS) == 32) ? 1 : -1];
-extern PROCESS plist[8];
+extern PROCESS plist[4];	// only 4 for now, later redefine to 8
+extern uint8_t block_buf[512];
 extern uint8_t plist_idx;
 extern uint8_t nprocs;
 
 void process_init(void);
 void dispatch_current_process(void);
+uint8_t spawn_bbx(uint32_t lba, uint16_t nblocks, uint8_t base);
 void schedule_process(void);	// For now, unused
+extern void sched_start(void);
 // void process_set_current(uint8_t index);
 // Assembly functions
 //extern void process_save(PROCESS* p);

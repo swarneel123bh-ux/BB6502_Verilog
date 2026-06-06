@@ -12,7 +12,6 @@ KERNEL_OBJS := $(BUILD_DIR)/crt0.o \
                $(BUILD_DIR)/main.o \
                $(BUILD_DIR)/brk.o \
                $(BUILD_DIR)/syscalls.o \
-               $(BUILD_DIR)/exec.o	\
                $(BUILD_DIR)/yield.o	\
                $(BUILD_DIR)/proc.o	\
                $(BUILD_DIR)/kernel.o
@@ -35,12 +34,13 @@ $(BUILD_DIR)/%.o: $(KERNEL_SRC)/%.s | $(BUILD_DIR)
 	$(CA65) $(CA65_FLAGS) -o $@ $<
 
 $(KERNEL_BBX): $(KERNEL_OBJS) $(KERNEL_CFG)
-	$(LD65) -C $(KERNEL_CFG) -o $@ $(KERNEL_OBJS) none.lib
+	# $(LD65) -C $(KERNEL_CFG) -o $@ $(KERNEL_OBJS) none.lib
+	$(LD65) -C $(KERNEL_CFG) -m $(BUILD_DIR)/kernel.map -o $@ $(KERNEL_OBJS) none.lib
 
 $(BUILD_DIR)/boot.o: $(BOOT_DIR)/boot.s | $(BUILD_DIR)
 	$(CA65) $(CA65_FLAGS) -o $@ $<
 $(BOOT_BIN): $(BOOT_OBJS) $(BOOT_CFG)
-	$(LD65) -C $(BOOT_CFG) -o $@ $(BOOT_OBJS)
+	$(LD65) -C $(BOOT_CFG) -m $(BUILD_DIR)/boot.map -o $@ $(BOOT_OBJS)
 $(BOOT_HEX): $(BOOT_BIN)
 	hexdump -v -e '1/1 "%02x\n"' $< > $@
 

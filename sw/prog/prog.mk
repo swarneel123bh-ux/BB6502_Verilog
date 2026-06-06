@@ -14,13 +14,13 @@ HELLO2_OBJS := $(PROG_COMMON) $(BUILD_DIR)/prog_hello2.o
 all: $(PROG_BBX) $(PROG2_BBX)
 syslib: $(BUILD_DIR)/prog_syslib.o
 $(BUILD_DIR)/prog_%.s: $(PROG_SRC)/%.c | $(BUILD_DIR)
-	$(CC65) $(CC65_FLAGS) -o $@ $
+	$(CC65) $(CC65_FLAGS) -o $@ $<
 $(BUILD_DIR)/prog_%.o: $(BUILD_DIR)/prog_%.s | $(BUILD_DIR)
-	$(CA65) $(CA65_FLAGS) -o $@ $
+	$(CA65) $(CA65_FLAGS) -o $@ $<
 $(BUILD_DIR)/prog_syslib.o: $(PROG_SRC)/syslib.s | $(BUILD_DIR)
-	$(CA65) $(CA65_FLAGS) -o $@ $
+	$(CA65) $(CA65_FLAGS) -o $@ $<
 $(BUILD_DIR)/prog_crt0.o: $(PROG_CRT0) | $(BUILD_DIR)
-	$(CA65) $(CA65_FLAGS) -o $@ $
+	$(CA65) $(CA65_FLAGS) -o $@ $<
 $(PROG_BBX): $(HELLO_OBJS) $(PROG_CFG)
 	$(LD65) -C $(PROG_CFG) -o $@ $(HELLO_OBJS) none.lib
 $(PROG2_BBX): $(HELLO2_OBJS) $(PROG_CFG)
