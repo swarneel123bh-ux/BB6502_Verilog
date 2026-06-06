@@ -43,18 +43,22 @@ module mmu6502 #(
   // There are a total of 16 ctrl register slots available for now
   wire is_ctrl = (addr[15:4] == 12'h80F);  // Any of $80F0 to $80FF
 
+  // ==========================
+  // MODE FSM
+  // ==========================
+
+  wire fault_u, fault_w, fault_ctrl;
+  reg kernel;
+
 
   // ==========================
   // TRANSLATION (COMBINATIONAL)
   // ==========================
+  // wire [PPN_WIDTH-1:0] eff_ppn = (kernel == 1) ? addr[14:12] : ppn[vpn];
+  // assign ram_addr = {eff_ppn, addr[11:0]};
 
-  assign ram_addr = {ppn[vpn], addr[11:0]};  // Real address
+  assign ram_addr = {ppn[vpn], addr[11:0]};
 
-  // ==========================
-  // MODE FSM
-  // ==========================
-  wire fault_u, fault_w, fault_ctrl;
-  reg kernel;
 
 
   // ==========================
@@ -64,16 +68,15 @@ module mmu6502 #(
   integer i;
   always @(negedge phi2 or negedge resetb) begin
 
-    // Reset behaviour
-    if (!resetb) begin
+    if (!resetb) begin	// Reset behaviour
       for (i = 0; i < 8; i = i + 1) begin
         ppn[i] <= i[PPN_WIDTH-1:0];  // Fill table linearly (truncate high bits)
       end
       w_bits <= 8'hFF;  // All pages writable
       u_bits <= 8'h00;  // No pages user accessible (in kernel mode at reset)
       kernel <= 1'b1;  // Start in kernel mode
-    end  // Control Register behaviour
-    else begin
+    end
+    else begin	// Control Register behaviour
 
       // Sample VPB pin to get back into kernel mode on Traps
       if (!vpb || fault_u || fault_w || fault_ctrl) begin

@@ -12,7 +12,10 @@ KERNEL_OBJS := $(BUILD_DIR)/crt0.o \
                $(BUILD_DIR)/main.o \
                $(BUILD_DIR)/brk.o \
                $(BUILD_DIR)/syscalls.o \
-               $(BUILD_DIR)/exec.o
+               $(BUILD_DIR)/exec.o	\
+               $(BUILD_DIR)/yield.o	\
+               $(BUILD_DIR)/proc.o	\
+               $(BUILD_DIR)/kernel.o
 
 BOOT_CFG    := $(BOOT_DIR)/boot.cfg
 BOOT_OBJS   := $(BUILD_DIR)/boot.o

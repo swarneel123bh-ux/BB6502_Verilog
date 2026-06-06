@@ -18,7 +18,8 @@ CA65_FLAGS := --cpu 65c02
 DISK_SIZE_KB := 1440
 BOOT_REC_LBA := 100
 KERNEL_LBA   := 101
-PROG_LBA     := 200
+PROG_LBA  := 200
+PROG2_LBA := 210
 
 SIM_VVP      := $(BUILD_DIR)/sim.vvp
 GPU_BIN      := $(BUILD_DIR)/gpu
@@ -26,5 +27,6 @@ KERNEL_BBX   := $(BUILD_DIR)/kernel.bbx
 BOOT_BIN     := $(BUILD_DIR)/bootrom.bin
 BOOT_HEX     := $(BUILD_DIR)/bootrom.hex
 BOOT_REC_BIN := $(BUILD_DIR)/bootrec.bin
-PROG_BBX     := $(BUILD_DIR)/hello.bbx
+PROG_BBX  := $(BUILD_DIR)/hello.bbx
+PROG2_BBX := $(BUILD_DIR)/hello2.bbx
 DISK_IMG     := $(BUILD_DIR)/disk.img

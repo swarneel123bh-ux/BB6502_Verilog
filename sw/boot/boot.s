@@ -1,5 +1,5 @@
 .setcpu "65C02"
-.include "../devices.s"
+.include "./devices.s"
 
 ; ------ Commands ------
 CMD_READ 		= $01
@@ -12,6 +12,9 @@ STATUS_BUSY 	= $01
 ZP_PTR 				= $00			; 2 bytes
 ZP_COUNT 			= $02			; 2 bytes
 ZP_LBA 				= $04			; 4 bytes
+
+; Persistent ZP (basically using the same addr everywhere)
+ZP_CURR_PROC_MMU_PPN0 = $53
 
 BOOT_REC_LBA 	= 100			; BOOT RECORD MUST BE AT LBA100 ON THE DISK
 STAGE_ADDR		= $0200		; KERNEL MUST BE LOADED AT THIS ADDRESS
@@ -272,9 +275,48 @@ halt:
 ;  BRK trampoline: jumps through user-supplied vector at $FE/$FF.
 ;  Kernel writes its real handler address here at boot.
 ;  Also used for IRQ (same vector on 6502).
+;
+; NOTE: The extra code is to maintain kernel's page 0
+; while also saving running process's page 0
 ; ============================================================
 brk_trampoline:
-        jmp ($00FE)
+				; Push to program stack
+				pha
+				txa
+				pha
+				tya
+				pha
+				; Load the programs mmu page 0 data and store
+				lda MMU_PPN0
+				tax
+				; Change mmu page table 0th entry to kernel space (as well)
+				lda #0
+				sta MMU_PPN0
+				stx ZP_CURR_PROC_MMU_PPN0
+				jmp ($00FE)
+
+; ============================================================
+; Yield syscall's  rti
+; Jumps here when need to continue exec inside
+; incoming process (havent mapped page 0 yet)
+;
+; This is here because we need it to be accessible anywhere without
+; remapping hardware page table entry 0
+; ============================================================
+.export yield_rti
+yield_rti:
+				ldy #14
+				lda (ZP_CURR_PROC_PTR),y
+				sta MMU_PPN0
+				lda #0
+				sta MMU_CTRL	; Drop back to user mode
+				txs						; We had loaded incoming proc's SP into X reg inside do_yield
+				pla
+				tay
+				pla
+				tax
+				pla
+				rti
 
 
 ; Avoid early brk trigger by simply returning from interrupts

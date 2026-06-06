@@ -31,6 +31,8 @@ $(DISK_IMG): kernel prog $(shell find $(DISK_DIR) -type f 2>/dev/null) | $(BUILD
 	@dd if=$(KERNEL_BBX) of=$@ bs=512 seek=$(KERNEL_LBA) conv=notrunc status=none
 	@echo "  Hello program  -> LBA $(PROG_LBA)"
 	@dd if=$(PROG_BBX) of=$@ bs=512 seek=$(PROG_LBA) conv=notrunc status=none
+	@echo "  Hello2 program -> LBA $(PROG2_LBA)"
+	@dd if=$(PROG2_BBX) of=$@ bs=512 seek=$(PROG2_LBA) conv=notrunc status=none
 
 gpu:
 	$(MAKE) -C rtl -f rtl.mk gpu

@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 
+#define SYS_YIELD				 0
 #define SYS_EXIT         1
 #define SYS_PUTC         2
 #define SYS_GETC         3
@@ -12,6 +13,7 @@
 #define SYS_EXEC         7
 #define SYS_GETC_NB      8
 
+void 		sys_yield(void);
 void    sys_exit(uint8_t code);
 void    sys_putc(uint8_t c);
 uint8_t sys_getc(void);

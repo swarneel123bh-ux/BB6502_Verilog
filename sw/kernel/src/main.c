@@ -4,38 +4,11 @@
 #include "include/exec.h"
 #include "include/devices.h"
 
-
-void k_putc(char c) {
-  while (!(*ACIA_STATUS & 0x01)); // Wait for ACIA TX ready
-  *ACIA_DATA = c;
-}
-
-void k_gputc(char c) {
-  while (!(*GPU_STATUS & 0x01)); // Wait for GPU TX ready
-  *GPU_DATA = c;
-}
-
-void k_print(char* str) {
-  while (*str) {
-	 	k_putc(*str);
-	  k_gputc(*str);
-	  str++;
-  }
-}
-
-void k_puthex(uint8_t b) {
-	const char *alphabet = "0123456789ABCDEF";
-	k_putc(alphabet[b >> 4]);			// High nibble
-	k_gputc(alphabet[b >> 4]);		// High nibble
-	k_putc(alphabet[b & 0x0F]); 	// Low nibble
-	k_gputc(alphabet[b & 0x0F]); 	// Low nibble
-}
-
 static uint8_t block_buf[BLOCK_SIZE];
 
-
 // _brk_handler
-extern void brk_handler(void);
+// Kernel must install this at $FFFE after boot
+extern void brk_handler(void);	// <- in brk.s
 
 int main(void) {
 	uint8_t i;
@@ -77,8 +50,10 @@ int main(void) {
   }
 
   // Try executing a program at LBA 200 (HELLO.BBX MUST BE THERE)
-  k_print("Loading a program from LBA200\n");
-  exec_bbx(200, 1);
+  // k_print("Loading a program from LBA200\n");
+  // exec_bbx(200, 1);
+  //
+  // Try creating a process, then have the process yield itself
 
  	k_print("Program returned, hanging\n");
   while(1);

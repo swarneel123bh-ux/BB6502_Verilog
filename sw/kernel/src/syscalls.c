@@ -24,22 +24,30 @@
 
 // Syscall numbers
 enum {
-  SYS_EXIT         = 1,
-  SYS_PUTC         = 2,
-  SYS_GETC         = 3,
-  SYS_PUTS         = 4,
-  SYS_BLOCK_READ   = 5,
-  SYS_BLOCK_WRITE  = 6,
-  SYS_EXEC         = 7,
-  SYS_GETC_NB      = 8,
-  SYS_OPEN_FAT     = 9,
-  SYS_READ_FAT     = 10,
+	SYS_YIELD				 		= 0,
+	SYS_EXIT         		= 1,
+  SYS_PUTC         		= 2,
+  SYS_GETC         		= 3,
+  SYS_PUTS         		= 4,
+  SYS_BLOCK_READ   		= 5,
+  SYS_BLOCK_WRITE  		= 6,
+  SYS_EXEC         		= 7,
+  SYS_GETC_NB      		= 8,
+  SYS_OPEN_FAT     		= 9,
+  SYS_READ_FAT     		= 10,
+  SYS_PROCESS_CREATE 	= 11
 };
 
 static void do_exit(void) {
-  __asm__("sei");
+	// NEEDS TO CHANGE,
+	// THE KERNEL MUST BE ABLE TO DEALLOCATE THE MEMORY FOR THIS
+	// EXITING PROCESS
+	__asm__("sei");
   while (1);
 }
+
+// Defined in yield.s
+extern void do_yield(void);
 
 static void do_putc(void) {
 	k_putc(SYS_A_REG);
@@ -71,6 +79,7 @@ static void do_block_write(void) {
   SYS_RET = block_write(lba, buf);
 }
 
+// NEEDS REDEFINITION AFTER PROCESSES ARE INCORPORATED
 extern uint8_t exec_bbx(uint32_t lba, uint16_t nblocks);
 
 static void do_exec(void) {
@@ -93,9 +102,14 @@ static void do_enosys(void) {
   SYS_RET = ENOSYS;
 }
 
+static void do_process_create() {
+
+}
+
 void syscall_dispatch(void) {
   switch (SYS_NUM) {
-    case SYS_EXIT:         do_exit();        break;
+   	case SYS_YIELD:				 do_yield();			 break;
+  	case SYS_EXIT:         do_exit();        break;
     case SYS_PUTC:         do_putc();        break;
     case SYS_GETC:         do_getc();        break;
     case SYS_PUTS:         do_puts();        break;

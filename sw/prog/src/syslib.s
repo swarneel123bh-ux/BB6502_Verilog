@@ -1,15 +1,3 @@
-; ------------------------------------------------------------
-; uint8_t sys_block_read(uint16_t lba, uint8_t* buf)
-;
-; cc65 stack layout on entry:
-;   sp+0  return lo
-;   sp+1  return hi
-;   sp+2  lba lo
-;   sp+3  lba hi
-;   sp+4  buf lo
-;   sp+5  buf hi
-; ------------------------------------------------------------
-
 .export _sys_exit
 .export _sys_putc
 .export _sys_getc
@@ -39,6 +27,16 @@ _sys_exit:
     .byte 1
 @hang:
     jmp @hang
+
+; ------------------------------------------------------------
+; void sys_yield(uint8_t code)
+; ------------------------------------------------------------
+_sys_yield:
+		brk
+		.byte 0
+		rts
+@hang:
+		jmp @hang
 
 ; ------------------------------------------------------------
 ; void sys_putc(uint8_t c)
@@ -71,6 +69,14 @@ _sys_puts:
 
 ; ------------------------------------------------------------
 ; uint8_t sys_block_read(uint16_t lba, uint8_t* buf)
+;
+; cc65 stack layout on entry:
+;   sp+0  return lo
+;   sp+1  return hi
+;   sp+2  lba lo
+;   sp+3  lba hi
+;   sp+4  buf lo
+;   sp+5  buf hi
 ; ------------------------------------------------------------
 _sys_block_read:
     ; get C stack pointer

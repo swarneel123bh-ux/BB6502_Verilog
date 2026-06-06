@@ -1,14 +1,15 @@
 ; Kernel BRK handler
-
-
 .setcpu "65C02"
 .export _brk_handler
 .import _syscall_dispatch
+.import do_yield
+.include "../devices.s"
 
 ; Syscall Application Binary Inteface (ABI)
 ZP_SYS_NUM_PTR = 	$30				; Pointer to (PC+2)-1 so that we can retrieve syscall number from inline
 ZP_SYS_NUM = 			$32				; Syscall number to trigger
 ZP_SYS_RET = 			$33				; Syscall return value stored here
+ZP_CURR_PROC_MMU_PPN0 = $53
 
 .segment "CODE"
 ; ================
@@ -37,46 +38,61 @@ ZP_SYS_RET = 			$33				; Syscall return value stored here
 ; 		; <exec resumes from here>
 ; ================
 _brk_handler:
-				pha
-				txa
-				pha
-				tya
-				pha
-
-				; AFTER THESE INSTRUCTIONS THE STACK HAS CHANGED TO : -
-				; 																														<- sp
-				; 	Y																													<- sp + 1
-				;   X																													<- sp + 2
-				; 	A																													<- sp + 3
-				; 	status register (with B flag set indicating BRK, not IRQ) <- sp + 4
-				;   PCL  (low byte of PC+2 after BRK instruction)							<- sp + 5
-				;   PCH  (high byte of PC+2 after BRK instruction) 						<- sp + 6
-				;
-				; So PCL is at $0105,x, PCH is at $0105,x
-
 				tsx
+
+				lda ZP_CURR_PROC_MMU_PPN0		; Load the page number to get stack access
+				sta MMU_PPN0
+
 				lda $0104,x				; (saved status register will be at $0100(hardware stack) + sp)
 				and #$10					; Get the B flag of the status register (if set then brk)
-				beq irq_path			; Interrupt was a software one, treat as irq
+				bne @brk_path
 
+				lda #0
+				sta MMU_PPN0
+				jmp irq_path			; Interrupt was a software one, treat as irq
+
+@brk_path:
 				; ---- BRK PATH ----
 				; Saved PCH/PCL is at ($0100 + sp + (3 / 2))
 				; Restore
-				lda $0105,x						; Load PCL
+				lda $0105,x						; Load PCL (Still in process stack)
 				sec										; Set carry
 				sbc #1								; Subtract with carry to get previous byte
-				sta ZP_SYS_NUM_PTR		; Store the syscall_number_pointer's low byte
+				tay
+
+				lda #0
+				sta MMU_PPN0
+				sty ZP_SYS_NUM_PTR		; Store the syscall_number_pointer's low byte
+
+				lda ZP_CURR_PROC_MMU_PPN0	; Padding necessary to retrive from program stack
+				sta MMU_PPN0
 				lda $0106,x						; Load PCH
 				sbc #0								; Subtract 0 (if borrow was used)
-				sta ZP_SYS_NUM_PTR+1	; Store the syscall_number_pointer's high byte
+				tay
+				lda #0
+				sta MMU_PPN0
+				sty ZP_SYS_NUM_PTR+1	; Store the syscall_number_pointer's high byte
 				; Now we have ptr to syscall number, derefernce it
 
 				ldy #0
 				lda (ZP_SYS_NUM_PTR),y 	; Read syscall signature from ZP_SYS_NUM
 				sta ZP_SYS_NUM					; now ZP_SYS_NUM has signature syscall number
 
+				; Check if this was a yield syscall (SYS_YIELD (0))
+				cmp #0
+				bne @not_do_yield
+				jmp do_yield			; BRANCH WITHOUT RTS using JMP because DO_YIELD IS FAR AWAY
+@not_do_yield:
 				jsr _syscall_dispatch	; Handle syscall
 
+				; Need to reload ppn0 before we can pull from stack
+				; the regsters that the brk_trampoline pushed
+				lda ZP_CURR_PROC_MMU_PPN0
+				sta MMU_PPN0
+
+				; restore user mode before returning from interrupt
+				lda #0
+				sta MMU_CTRL
 				pla
 				tay
 				pla
@@ -86,6 +102,11 @@ _brk_handler:
 
 				; ---- IRQ PATH -----
 irq_path:	; NOT YET IMPLEMENTED
+				; Need to re-set ppn0 before we can pull from process stack
+				lda ZP_CURR_PROC_MMU_PPN0
+				sta MMU_PPN0
+				lda #0
+				sta MMU_CTRL
 				ply
 				plx
 				pla
