@@ -53,8 +53,10 @@ do_yield:
   sta (ZP_CURR_PROC_PTR),y
 
   ; save PPN table at offsets 14..21
+  ; NOTE: PPN0 currently maps the KERNEL (brk_trampoline swapped it),
+  ; so the running process's real page 0 must come from the saved copy.
   ldy #PROC_OFF_PPN0
-  lda MMU_PPN0
+  lda ZP_CURR_PROC_MMU_PPN0
   sta (ZP_CURR_PROC_PTR),y
   iny
   lda MMU_PPN1
@@ -77,6 +79,11 @@ do_yield:
   iny
   lda MMU_PPN7
   sta (ZP_CURR_PROC_PTR),y
+
+  ; user's real ppn7 is now saved; map kernel phys page 7 into vpage7 so
+  ; the cc65 C-stack (sp=$7eff) is valid while _schedule_process runs.
+  lda #7
+  sta MMU_PPN7
 
   ; --- pick next process (updates _plist_idx) ---
   jsr _schedule_process
@@ -101,7 +108,8 @@ do_yield:
   ; MUST STALL LOADING MMU_PPN0
   ; Instead, we jump to yield_rti to do that for us
   ; This is necessary to stay in kernel's page
-  iny
+  iny                 ; y=14 (ppn0 slot) -- skipped, yield_rti restores ppn0
+  iny                 ; y=15 (ppn1)
   lda (ZP_CURR_PROC_PTR),y
   sta MMU_PPN1
   iny
@@ -123,7 +131,7 @@ do_yield:
   lda (ZP_CURR_PROC_PTR),y
   sta MMU_PPN7
 
-  jmp yield_rti
+  jmp (yield_rti)
 
   ; switch to selected process's stack LAST, then return into it
 
@@ -155,7 +163,11 @@ _sched_start:
   lda #$ff
   sta MMU_UBITS          ; let user reach all 8 virtual pages (its own phys pages)
   sta MMU_WBITS
+
+
   jsr calc_proc_ptr       ; ZP_CURR_PROC_PTR = &plist[0]
+
+
   ldy #PROC_OFF_STATE
   lda #PROC_STATE_RUNNING
   sta (ZP_CURR_PROC_PTR),y
@@ -165,6 +177,7 @@ _sched_start:
   ldy #15                 ; ppn[1] (ppn[0] is restored by yield_rti)
   lda (ZP_CURR_PROC_PTR),y
   sta MMU_PPN1
+
   iny
   lda (ZP_CURR_PROC_PTR),y
   sta MMU_PPN2
@@ -181,6 +194,8 @@ _sched_start:
   lda (ZP_CURR_PROC_PTR),y
   sta MMU_PPN6
   iny
+
   lda (ZP_CURR_PROC_PTR),y
   sta MMU_PPN7
-  jmp yield_rti
+
+  jmp (yield_rti)

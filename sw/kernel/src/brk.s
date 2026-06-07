@@ -6,108 +6,107 @@
 .include "../devices.s"
 
 ; Syscall Application Binary Inteface (ABI)
-ZP_SYS_NUM_PTR = 	$30				; Pointer to (PC+2)-1 so that we can retrieve syscall number from inline
-ZP_SYS_NUM = 			$32				; Syscall number to trigger
-ZP_SYS_RET = 			$33				; Syscall return value stored here
+ZP_SYS_NUM_PTR = $30        ; Pointer to (PC+2)-1 so that we can retrieve syscall number from inline
+ZP_SYS_NUM     = $32        ; Syscall number to trigger
+ZP_SYS_RET     = $33        ; Syscall return value stored here
 ZP_CURR_PROC_MMU_PPN0 = $53
+ZP_BRK_SP      = $55        ; user SP captured at entry (for yield_rti txs)
+ZP_SAVE_PPN1   = $56        ; scratch save of MMU_PPN1 during frame read
+ZP_SAVE_PPN7   = $57        ; scratch save of MMU_PPN7 around C dispatch
+
+; yield_rti lives in ROM ($FFF8 vector). We exit through it so the
+; page-0 remap + register pulls + rti all run from ROM (which bypasses
+; the MMU) instead of from kernel page 0 (which we are about to unmap).
+yield_rti = $FFF8
 
 .segment "CODE"
 ; ================
-; brk_handler is the same as our generic interrupt handler but can distinguish
-; hardware interrupts fro software interrupts
-;
-; brk_handler: brk is an interrupt(irq) => cpu jumps to $FFFE => $FFFE has a jump instr
-; to addres at ($00FE) [instr JMP ($00FE)]
+; brk_handler: distinguishes hardware IRQ from software BRK.
 ;
 ; Stack on entry (top down):
-; 																														<- sp
-; 	status register (with B flag set indicating BRK, not IRQ) <- sp + 1
-;   PCL  (low byte of PC+2 after BRK instruction)							<- sp + 2
-;   PCH  (high byte of PC+2 after BRK instruction) 						<- sp + 3
+;                                       <- sp
+;   status register (B set => BRK)      <- sp + 4 (after trampoline's A/X/Y pushes)
+;   PCL                                 <- sp + 5
+;   PCH                                 <- sp + 6
 ;
-; 6502 BRK instruction is 2 bytes only (not 3)
-; so PC 			-> BRK
-; 	 PC + 1   -> SYSCALL NUMBER
-; 	 PC + 2		-> NEXT INSTRUCTION
-;
-; Meaning the programmer must define the syscall number after the brk instruction
-; (just like puts_inline)
-;
-; 		brk
-; 		.byte SYSCALL_NUMBER
-; 		; <exec resumes from here>
+; The running process's stack lives in *its* page 0. The handler lives in
+; the *kernel's* page 0. We must NOT remap MMU_PPN0 while executing here,
+; or the very next instruction fetch vanishes. So we view the user stack
+; through virtual page 1 (MMU_PPN1) for the frame read, keeping PPN0 = kernel.
 ; ================
 _brk_handler:
-				tsx
+                tsx
+                stx ZP_BRK_SP               ; remember user SP for the exit
 
-				lda ZP_CURR_PROC_MMU_PPN0		; Load the page number to get stack access
-				sta MMU_PPN0
+                ; Map user's page 0 (its stack) into virtual page 1, read frame.
+                lda MMU_PPN1
+                sta ZP_SAVE_PPN1
+                lda ZP_CURR_PROC_MMU_PPN0
+                sta MMU_PPN1               ; vpage1 -> user stack page
 
-				lda $0104,x				; (saved status register will be at $0100(hardware stack) + sp)
-				and #$10					; Get the B flag of the status register (if set then brk)
-				bne @brk_path
+                lda $1104,x                ; saved status (vpage1 mirror of $0104,x)
+                and #$10                   ; B flag set => software BRK
+                bne @brk_path
 
-				lda #0
-				sta MMU_PPN0
-				jmp irq_path			; Interrupt was a software one, treat as irq
+                ; ---- IRQ PATH ----
+                lda ZP_SAVE_PPN1
+                sta MMU_PPN1               ; restore vpage1
+                jmp irq_path
 
 @brk_path:
-				; ---- BRK PATH ----
-				; Saved PCH/PCL is at ($0100 + sp + (3 / 2))
-				; Restore
-				lda $0105,x						; Load PCL (Still in process stack)
-				sec										; Set carry
-				sbc #1								; Subtract with carry to get previous byte
-				tay
+                ; ptr to syscall number = (saved PC) - 1, read from vpage1 mirror
+                lda $1105,x                ; PCL
+                sec
+                sbc #1
+                sta ZP_SYS_NUM_PTR
+                lda $1106,x                ; PCH
+                sbc #0
+                sta ZP_SYS_NUM_PTR+1
 
-				lda #0
-				sta MMU_PPN0
-				sty ZP_SYS_NUM_PTR		; Store the syscall_number_pointer's low byte
+                ; Syscall args are passed in the *user's* zero page ($34-$3f),
+                ; but zero page is page-0-private. During dispatch PPN0 = kernel,
+                ; so the C handlers would read the kernel's ZP, not the user's.
+                ; Copy the user arg block (read via the vpage1=user-page-0 mirror
+                ; at $1134-$113f) into the kernel ZP now, before remapping vpage1.
+                ldy #$0b                    ; $34..$3f = 12 bytes (ARG0..ARG2 + spare)
+@cpargs:
+                lda $1034,y                 ; user ZP mirror: $0034+y via vpage1
+                sta $34,y                   ; kernel ZP
+                dey
+                bpl @cpargs
 
-				lda ZP_CURR_PROC_MMU_PPN0	; Padding necessary to retrive from program stack
-				sta MMU_PPN0
-				lda $0106,x						; Load PCH
-				sbc #0								; Subtract 0 (if borrow was used)
-				tay
-				lda #0
-				sta MMU_PPN0
-				sty ZP_SYS_NUM_PTR+1	; Store the syscall_number_pointer's high byte
-				; Now we have ptr to syscall number, derefernce it
+                ; restore vpage1 -> user code page before dereferencing syscall num
+                lda ZP_SAVE_PPN1
+                sta MMU_PPN1
 
-				ldy #0
-				lda (ZP_SYS_NUM_PTR),y 	; Read syscall signature from ZP_SYS_NUM
-				sta ZP_SYS_NUM					; now ZP_SYS_NUM has signature syscall number
+                ldy #0
+                lda (ZP_SYS_NUM_PTR),y     ; syscall number (lives in user code page)
+                sta ZP_SYS_NUM
 
-				; Check if this was a yield syscall (SYS_YIELD (0))
-				cmp #0
-				bne @not_do_yield
-				jmp do_yield			; BRANCH WITHOUT RTS using JMP because DO_YIELD IS FAR AWAY
+                cmp #0                     ; SYS_YIELD (0)?
+                bne @not_do_yield
+                jmp do_yield               ; far branch via JMP
+
 @not_do_yield:
-				jsr _syscall_dispatch	; Handle syscall
+                ; The kernel cc65 C-stack lives in virtual page 7 (sp=$7eff).
+                ; During a syscall MMU_PPN7 still maps the *user's* page, so any
+                ; C code (k_print, locals, args) would read/write garbage.
+                ; Map kernel phys page 7 into vpage7 for the duration of the C
+                ; call, then restore the user's ppn7 before returning to it.
+                lda MMU_PPN7
+                sta ZP_SAVE_PPN7
+                lda #7
+                sta MMU_PPN7
 
-				; Need to reload ppn0 before we can pull from stack
-				; the regsters that the brk_trampoline pushed
-				lda ZP_CURR_PROC_MMU_PPN0
-				sta MMU_PPN0
+                jsr _syscall_dispatch
 
-				; restore user mode before returning from interrupt
-				lda #0
-				sta MMU_CTRL
-				pla
-				tay
-				pla
-				tax
-				pla
-				rti
+                lda ZP_SAVE_PPN7
+                sta MMU_PPN7               ; vpage7 -> user page again
 
-				; ---- IRQ PATH -----
-irq_path:	; NOT YET IMPLEMENTED
-				; Need to re-set ppn0 before we can pull from process stack
-				lda ZP_CURR_PROC_MMU_PPN0
-				sta MMU_PPN0
-				lda #0
-				sta MMU_CTRL
-				ply
-				plx
-				pla
-				rti
+                ; Return to user through the ROM stub.
+                ldx ZP_BRK_SP              ; X = user SP -> yield_rti does txs
+                jmp (yield_rti)
+
+irq_path:       ; NOT YET IMPLEMENTED (routed through ROM exit too)
+                ldx ZP_BRK_SP
+                jmp (yield_rti)

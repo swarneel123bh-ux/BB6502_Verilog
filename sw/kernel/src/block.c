@@ -63,6 +63,7 @@ uint8_t block_read(uint32_t lba, uint8_t* buf) {
   return 0;
 }
 
+// Needs assembly optimization here like in block_read
 uint8_t block_write(uint32_t lba, const uint8_t* buf) {
 	uint16_t i;
 

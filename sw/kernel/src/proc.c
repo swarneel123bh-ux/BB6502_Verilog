@@ -24,13 +24,10 @@ void schedule_process(void) {
   }
 }
 
-// Load a BBX into the process's private pages, fabricate its first
-// rti frame, fill the PCB, register it. Does NOT run it.
-// base = first physical page; ppn[k] = base + k.
 uint8_t spawn_bbx(uint32_t lba, uint16_t nblocks, uint8_t base) {
   PROCESS *p;
-  uint16_t load, entry, b;
-  uint8_t i;
+  uint16_t b, entry, virt_addr;
+  uint8_t i, page_offset;
   volatile uint8_t *f;
 
   if (nprocs >= 4) {
@@ -39,16 +36,12 @@ uint8_t spawn_bbx(uint32_t lba, uint16_t nblocks, uint8_t base) {
   }
   p = &plist[nprocs];
 
-  // record the process's page table
-  // Test process should fit in a single page
-  // so identity map everything else
-  p->mmu_ppn_table[0] = base;
-  for (i = 1; i < 8; i++) {
-    p->mmu_ppn_table[i] = base + i;
-    PPN[i] = base + i;
+  // 1. Populate the process page table entries (Safe in normal space)
+  for (i = 0; i < 8; i++) {
+  	p->mmu_ppn_table[i] = base + i;
   }
 
-  // first sector: validate + grab entry
+  // 2. Read first sector while MMU is completely normal
   if (block_read(lba, block_buf)) {
     k_print("spawn: read fail\r\n");
     return 1;
@@ -57,41 +50,46 @@ uint8_t spawn_bbx(uint32_t lba, uint16_t nblocks, uint8_t base) {
     k_print("spawn: bad BBX magic\r\n");
     return 2;
   }
-  load = block_buf[2] | (block_buf[3] << 8);
   entry = block_buf[4] | (block_buf[5] << 8);
-  memcpy512(((void*)load), block_buf);
 
-  // remaining sectors (program must fit in pages 1..7 = 28KB)
-  for (b = 1; b < nblocks; b++) {
-    if (block_read(lba + b, block_buf)) {
-      k_print("spawn: read fail\r\n");
-      return 1;
+  // 3. Copy each block to child-virtual ($1000 + b*512) via the Bank 1 window.
+  //    User BBX loads at virtual $1000 (page 1) per prog.cfg.
+  //    block_buf already holds block 0 from above; re-read for b > 0.
+  for (b = 0; b < nblocks; b++) {
+    if (b != 0) {
+      if (block_read(lba + b, block_buf)) {
+        k_print("spawn: read fail\r\n");
+        return 1;
+      }
     }
-    memcpy512((void*)(load + (uint16_t)(b << 9)), block_buf);
+    virt_addr   = 0x1000 + (b << 9);          // b * 512 within the user image
+    page_offset = (uint8_t)(virt_addr >> 12); // virtual page 1..7
+    PPN[1] = base + page_offset;
+    memcpy512((void*)(0x1000 + (virt_addr & 0x0FFF)), block_buf);
+    PPN[1] = 1; // RESTORE IMMEDIATELY
   }
 
-  // fabricate first rti frame on the process's stack page.
-  // point ppn[1] at the stack page (base); $11FA == stack $01FA in that page.
+  // 4. Fabricate the RTI frame on the child's STACK page.
+  // The stack ($0100-$01FF) is virtual page 0 -> physical page 'base'.
+  // Map 'base' to our Bank 1 window, stamp the frame at $11FA, and restore.
   PPN[1] = base;
   f = (volatile uint8_t*)(0x11FA);
-  f[0] = 0;                       // Y   (pulled by yield_rti, don't-care)
-  f[1] = 0;                       // X
-  f[2] = 0;                       // A
-  f[3] = 0x20;                    // status: I clear, bit5 set
-  f[4] = (uint8_t)entry;          // PCL
-  f[5] = (uint8_t)(entry >> 8);   // PCH
+  f[0] = 0;        // Y
+  f[1] = 0;        // X
+  f[2] = 0;        // A
+  f[3] = 0x20;     // Status: I clear, bit5 set
+  f[4] = (uint8_t)entry;
+  f[5] = (uint8_t)(entry >> 8);
+  PPN[1] = 1; // RESTORE IMMEDIATELY
 
-  // restore boot identity for pages 1..7 (kernel only uses page 0 anyway)
-  for (i = 1; i < 8; i++) {
-    PPN[i] = i;
-  }
-
+  // 6. Complete PCB configuration safely in a completely stable MMU state
   p->state     = PROC_STATE_WAITING;
   p->exit_code = 0;
   p->lba       = (uint8_t)lba;
   p->nblocks   = (uint8_t)nblocks;
-  p->SP        = 0xF9;            // points below the 6-byte frame
+  p->SP        = 0xF9;
   p->name[0]   = 0;
+
   nprocs++;
   return 0;
 }

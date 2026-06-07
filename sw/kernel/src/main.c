@@ -54,32 +54,32 @@ int main(void) {
   	k_print("FAT boot signature MISSING\r\n");
   }
 
-  k_print("Spawining hello.c\r\n");
+  k_print("hello.c\r\n");
   spawn_bbx(200, 1, 1);    // hello
-  k_print("PROCESS struct for hello.c : -\r\n");
-  k_print("\r\nstate: "); 						k_puthex(plist[0].state);
-  k_print("\r\nlba: "); 							k_puthex(plist[0].lba);
-  k_print("\r\nnblocks: "); 					k_puthex(plist[0].nblocks);
-  k_print("\r\nsp: "); 								k_puthex(plist[0].SP);
-  k_print("\r\nmmu_ppn_table:-\r\n");
+  k_print("PROCESS\r\n");
+  k_print("\r\n"); 						k_puthex(plist[0].state);
+  k_print("\r\n"); 							k_puthex(plist[0].lba);
+  k_print("\r\n"); 					k_puthex(plist[0].nblocks);
+  k_print("\r\n"); 								k_puthex(plist[0].SP);
+  k_print("\r\n");
   for (i = 0; i < 8; ++i) {
  		k_puthex(plist[0].mmu_ppn_table[i]);
    	k_print("\r\n");
   }
-  k_print("Spawining hello2.c\r\n");
+  k_print("hello2.c\r\n");
   spawn_bbx(210, 1, 3);    // hello2
-  k_print("PROCESS struct for hello2.c : -\r\n");
-  k_print("\r\nstate: "); 						k_puthex(plist[1].state);
-  k_print("\r\nlba: "); 							k_puthex(plist[1].lba);
-  k_print("\r\nnblocks: "); 					k_puthex(plist[1].nblocks);
-  k_print("\r\nsp: "); 								k_puthex(plist[1].SP);
-  k_print("\r\nmmu_ppn_table:-\r\n");
+  k_print("PROCESS\r\n");
+  k_print("\r\n"); 						k_puthex(plist[1].state);
+  k_print("\r\n"); 							k_puthex(plist[1].lba);
+  k_print("\r\n"); 					k_puthex(plist[1].nblocks);
+  k_print("\r\n"); 								k_puthex(plist[1].SP);
+  k_print("\r\n");
   for (i = 0; i < 8; ++i) {
  		k_puthex(plist[1].mmu_ppn_table[i]);
    	k_print("\r\n");
   }
 
-  k_print("Starting scheduler...\r\n");
+  k_print("scheduler...\r\n");
   sched_start();           // never returns
 
  	k_print("Program returned, hanging\n");
