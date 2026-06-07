@@ -2,7 +2,8 @@
 .import _plist_idx
 .import _schedule_process
 ; .import yield_rti
-.include "../devices.s"
+.include "include/devices.s"
+.include "include/zp.s"
 
 ; Process states
 PROC_STATE_EXITED   = $00
@@ -14,10 +15,6 @@ PROC_STATE_RUNNING  = $02
 PROC_OFF_STATE      = 0
 PROC_OFF_SP         = 13
 PROC_OFF_PPN0       = 14    ; ppn_table[0..7] -> 14..21
-
-; TODO: move all explicit ZP pointers into a shared include
-ZP_CURR_PROC_PTR    	= $51
-ZP_CURR_PROC_MMU_PPN0 = $53
 
 ; yield_rti address, so that we can simply jump (is in ROM)
 yield_rti = $FFF8
@@ -53,10 +50,8 @@ do_yield:
   sta (ZP_CURR_PROC_PTR),y
 
   ; save PPN table at offsets 14..21
-  ; NOTE: PPN0 currently maps the KERNEL (brk_trampoline swapped it),
-  ; so the running process's real page 0 must come from the saved copy.
   ldy #PROC_OFF_PPN0
-  lda ZP_CURR_PROC_MMU_PPN0
+  lda MMU_PPN0
   sta (ZP_CURR_PROC_PTR),y
   iny
   lda MMU_PPN1
@@ -80,11 +75,6 @@ do_yield:
   lda MMU_PPN7
   sta (ZP_CURR_PROC_PTR),y
 
-  ; user's real ppn7 is now saved; map kernel phys page 7 into vpage7 so
-  ; the cc65 C-stack (sp=$7eff) is valid while _schedule_process runs.
-  lda #7
-  sta MMU_PPN7
-
   ; --- pick next process (updates _plist_idx) ---
   jsr _schedule_process
 
@@ -96,20 +86,17 @@ do_yield:
   lda #PROC_STATE_RUNNING
   sta (ZP_CURR_PROC_PTR),y
 
-  ; load saved SP into X (do NOT txs yet)
+  ; load saved SP into X
   ldy #PROC_OFF_SP
   lda (ZP_CURR_PROC_PTR),y
   tax
+  txs
 
   ; restore PPN table (offsets 14..21)
-  ; NOTE: once these execute, the address space is the selected
-  ; process's. No stack ops are allowed between here and txs/rti
-  ; because SP still points into the OLD process's stack page.
-  ; MUST STALL LOADING MMU_PPN0
-  ; Instead, we jump to yield_rti to do that for us
-  ; This is necessary to stay in kernel's page
-  iny                 ; y=14 (ppn0 slot) -- skipped, yield_rti restores ppn0
-  iny                 ; y=15 (ppn1)
+  ldy #PROC_OFF_PPN0
+  lda (ZP_CURR_PROC_PTR),y
+  sta MMU_PPN0
+  iny
   lda (ZP_CURR_PROC_PTR),y
   sta MMU_PPN1
   iny
@@ -130,10 +117,8 @@ do_yield:
   iny
   lda (ZP_CURR_PROC_PTR),y
   sta MMU_PPN7
+  jmp (RET_USER_MODE)
 
-  jmp (yield_rti)
-
-  ; switch to selected process's stack LAST, then return into it
 
 ; ----------------------------------------------------------------
 ; calc_proc_ptr: ZP_CURR_PROC_PTR = &_plist + (_plist_idx * 32)
@@ -173,11 +158,17 @@ _sched_start:
   sta (ZP_CURR_PROC_PTR),y
   ldy #PROC_OFF_SP
   lda (ZP_CURR_PROC_PTR),y
-  tax                     ; X = saved SP (yield_rti does txs)
-  ldy #15                 ; ppn[1] (ppn[0] is restored by yield_rti)
+  tax
+  txs
+
+
+  ; Load the mmu ppns
+  ldy #14
+  lda (ZP_CURR_PROC_PTR),y
+  sta MMU_PPN0
+  iny
   lda (ZP_CURR_PROC_PTR),y
   sta MMU_PPN1
-
   iny
   lda (ZP_CURR_PROC_PTR),y
   sta MMU_PPN2
@@ -194,8 +185,6 @@ _sched_start:
   lda (ZP_CURR_PROC_PTR),y
   sta MMU_PPN6
   iny
-
   lda (ZP_CURR_PROC_PTR),y
   sta MMU_PPN7
-
-  jmp (yield_rti)
+  jmp (RET_USER_MODE)

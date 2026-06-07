@@ -17,9 +17,10 @@ int main(void) {
 
   // Identity map pages for kernel
   for (i = 0; i < 8; ++i) {
-  	*(MMU_PPN0 + i) = i;
+  	*(MMU_PPN0+i) = i;
   }
 
+  // Boot Sector test
   if (block_read(0, block_buf)) {
   	k_print("block_read ERROR");
    	while (1);	// Hang on Boot Sector Read fail
@@ -31,11 +32,12 @@ int main(void) {
   	k_print("FAT boot signature MISSING\r\n");
   }
 
-  spawn_bbx(200, 1, 1);    // hello
-  spawn_bbx(210, 1, 3);    // hello2
-  k_print("scheduler...\r\n");
+  k_print("Loading hello.c\r\n");
+  spawn_bbx(200, 1, 1);    // hello.c at lba 200
+  k_print("Loading hello2.c\r\n");
+  spawn_bbx(210, 1, 3);    // hello2.c at lba 210
+  k_print("Staring scheduler...\r\n");
   sched_start();           // never returns
-
  	k_print("Program returned, hanging\n");
   while(1);
   return 0;

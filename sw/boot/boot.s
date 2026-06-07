@@ -21,12 +21,15 @@ BOOT_REC_LBA 	= 100			; BOOT RECORD MUST BE AT LBA100 ON THE DISK
 STAGE_ADDR		= $0200		; KERNEL MUST BE LOADED AT THIS ADDRESS
 
 .segment "VECTORS"
-				.word yield_rti											; $FFF8
+				.word ret_user_mode									; $FFF8
 				.word nmi_handler										; $FFFA
 				.word reset													; $FFFC
 				.word brk_trampoline								; $FFFE
 
 .segment "CODE"
+ret_user_mode:
+				stz MMU_CTRL	; Reset to user mode (this runs without translation because in kernel mode)
+				rti						; rti from user stack (this runs without traslation because in ROM)
 nmi_handler:
 irq_handler:
 				rti
@@ -282,44 +285,7 @@ halt:
 ; while also saving running process's page 0
 ; ============================================================
 brk_trampoline:
-				; Push to program stack
-				pha
-				txa
-				pha
-				tya
-				pha
-				; Load the programs mmu page 0 data and store
-				lda MMU_PPN0
-				tax
-				; Change mmu page table 0th entry to kernel space (as well)
-				lda #0
-				sta MMU_PPN0
-				stx ZP_CURR_PROC_MMU_PPN0
 				jmp ($00FE)
-
-; ============================================================
-; Yield syscall's  rti
-; Jumps here when need to continue exec inside
-; incoming process (havent mapped page 0 yet)
-;
-; This is here because we need it to be accessible anywhere without
-; remapping hardware page table entry 0
-; ============================================================
-; .export yield_rti
-yield_rti:
-  ; Contract: X = incoming SP, ZP_CURR_PROC_PTR -> PCB,
-  ; PPN0 = kernel, PPN1..7 = incoming user. NO syscalls in here.
-  ldy #14
-  lda (ZP_CURR_PROC_PTR),y   ; ppn_table[0], read while kernel page 0 still mapped
-  sta MMU_PPN0               ; page 0 -> user; PCB now unreachable
-  txs                        ; SP = incoming saved SP
-  pla
-  tay
-  pla
-  tax
-  pla
-  rti
-
 
 ; Avoid early brk trigger by simply returning from interrupts
 early_brk:

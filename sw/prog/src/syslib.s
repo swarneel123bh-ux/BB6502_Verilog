@@ -6,6 +6,7 @@
 .export _sys_block_read
 .export _sys_block_write
 
+; These are STILL in program zp (user mode, not in real hardware zp)
 SYS_NUM_PTR   = $30
 SYS_NUM				= $32
 SYS_RET       = $33
@@ -24,8 +25,12 @@ SYS_A_REG     = $40   ; for syscalls returning a byte
 ; ------------------------------------------------------------
 _sys_exit:
     sta SYS_A_REG
+    pha
+    phx
+    phy
     brk
     .byte 1
+    ; No need to retrieve registers before a hang
 @hang:
     jmp @hang
 
@@ -33,8 +38,14 @@ _sys_exit:
 ; void sys_yield(void)
 ; ------------------------------------------------------------
 _sys_yield:
+		pha
+		phx
+		phy
 		brk
 		.byte 0
+		ply
+		plx
+		pla
 		rts
 @hang:
 		jmp @hang
@@ -44,18 +55,30 @@ _sys_yield:
 ; ------------------------------------------------------------
 _sys_putc:
     sta SYS_A_REG
-    brk
-    .byte 2
+    pha
+		phx
+		phy
+		brk
+		.byte 2
+		ply
+		plx
+		pla
     rts
 
 ; ------------------------------------------------------------
 ; uint8_t sys_getc(void)
 ; ------------------------------------------------------------
 _sys_getc:
-    brk
-    .byte 3
-    lda SYS_A_REG
-    rts
+			pha
+			phx
+			phy
+			brk
+    	.byte 3
+     	ply
+      plx
+      pla
+    	lda SYS_A_REG
+      rts
 
 ; ------------------------------------------------------------
 ; void sys_puts(const char* s)
@@ -64,8 +87,14 @@ _sys_getc:
 _sys_puts:
     sta SYS_ARG0_LO
     stx SYS_ARG0_HI
+    pha
+    phx
+    phy
     brk
     .byte 4
+    ply
+    plx
+    pla
     rts
 
 ; ------------------------------------------------------------
@@ -97,8 +126,14 @@ _sys_block_read:
     lda $0105,x
     sta SYS_ARG1_HI
 
+    pha
+    phx
+    phy
     brk
     .byte 5
+    ply
+    plx
+    pla
 
     lda SYS_RET
     ldx #0
@@ -124,8 +159,14 @@ _sys_block_write:
     lda $0105,x
     sta SYS_ARG1_HI
 
+    pha
+    phx
+    phy
     brk
     .byte 6
+    ply
+    plx
+    pla
 
     lda SYS_RET
     ldx #0

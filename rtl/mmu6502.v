@@ -57,7 +57,7 @@ module mmu6502 #(
   // wire [PPN_WIDTH-1:0] eff_ppn = (kernel == 1) ? addr[14:12] : ppn[vpn];
   // assign ram_addr = {eff_ppn, addr[11:0]};
 
-  assign ram_addr = {ppn[vpn], addr[11:0]};
+  assign ram_addr = {((kernel) ? addr[14:12] : ppn[vpn]), addr[11:0]};
 
 
 
