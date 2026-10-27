@@ -204,7 +204,8 @@ typedef struct {
 extern bool simReadMem(uint16_t addr, uint8_t *out);
 extern void simGetRegs(sim_regs_t *regs);
 extern bool simMmuIsKernel(void);           // MMU kernel (no-translation) mode
-extern uint8_t simMmuPpn(int vpage);        // physical page for virtual page 0-7
+extern uint8_t simMmuPpn(int vpage);        // physical page for virtual page 0-31
+#define SIM_MMU_NPAGES 32                   // 1 KB pages: VPN = VA[14:10]
 extern void simRequestReset(void);          // pulse the testbench reset line
 extern void simFinish(void);                // end the simulation ($finish)
 

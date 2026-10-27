@@ -1,9 +1,9 @@
 // ============================================================================
 // mmu6502.v — BB6502 memory management unit
 //
-// Splits the CPU's lower 32 KB ($0000-$7FFF) into 8 virtual pages of 4 KB
-// (VA[14:12] = virtual page number) and maps each to a physical page through
-// a small page table. Instantiated in tb.v with PPN_WIDTH = 3 (8 physical
+// Splits the CPU's lower 32 KB ($0000-$7FFF) into 32 virtual pages of 1 KB
+// (VA[14:10] = virtual page number) and maps each to a physical page through
+// a page table. Instantiated in tb.v with PPN_WIDTH = 5 (32 physical
 // pages = 32 KB of RAM).
 //
 //   Kernel mode  no translation (physical = virtual), all accesses allowed.
@@ -13,11 +13,16 @@
 // Mode changes:
 //   - reset, any vector fetch (VPB low: interrupt/BRK/reset) or any fault
 //     -> kernel mode
-//   - writing $80FA (kernel only): bit 0 = 1 kernel, 0 user. The boot ROM's
-//     ret_user_mode ($FFF8: STZ $80FA; RTI) is how the kernel enters a process.
+//   - writing $80A8 (kernel only): bit 0 = 1 kernel, 0 user. The boot ROM's
+//     ret_user_mode ($FFF8: STZ $80A8; RTI) is how the kernel enters a process.
 //
-// Control registers ($80F0-$80FF, writable in kernel mode only):
-//   $80F0-$80F7 ppn[0..7]   $80F8 w_bits   $80F9 u_bits   $80FA mode
+// Control registers ($8080-$80BF, writable in kernel mode only, readable in
+// both modes), by offset from $8080:
+//   $00-$1F  ppn[0..31]
+//   $20-$23  u_bits   byte k bit n = virtual page 8k+n may be accessed by user
+//   $24-$27  w_bits   same layout, virtual page may be written by user
+//   $28      mode     bit 0: 1 = kernel, 0 = user
+//   $29-$3F  reserved (read as 0)
 //
 // faultb is registered (one cycle late) and active low; tb.v connects it to
 // the CPU's NMI input.
@@ -35,7 +40,7 @@ module mmu6502 #(
     input  wire [           7:0] data_in,   // Data bus for sampling
     output wire [           7:0] data_out,  // Data bus for driving output
     output wire                  data_oe,   // Data bus output enable (when driving output)
-    output wire [11+PPN_WIDTH:0] ram_addr,  // Real Ram Address bus
+    output wire [9+PPN_WIDTH:0] ram_addr,  // Real Ram Address bus
     output wire                  faultb      // Fault pin (traps unauthorized accesses) (Active low)
 );
 
@@ -44,14 +49,14 @@ module mmu6502 #(
   // ==========================
 
   // hardware page table
-  // total 8 entries => 8 pages max
-  reg [PPN_WIDTH-1:0] ppn[0:7];
+  // total 32 entries => 32 pages of 1 KB
+  reg [PPN_WIDTH-1:0] ppn[0:31];
 
   // Write and User Access Permission bits
   // bit[i] is set => User can write/read to i'th page
-  // i : 0 -> 7 since there are 8 pages
-  reg [7:0] w_bits;  // Writable permission bit per VP
-  reg [7:0] u_bits;  // User-Accessable permission bit per VP
+  // i : 0 -> 31 since there are 32 pages
+  reg [31:0] w_bits;  // Writable permission bit per VP
+  reg [31:0] u_bits;  // User-Accessable permission bit per VP
 
 
 
@@ -60,12 +65,13 @@ module mmu6502 #(
   // ==========================
 
   // Virtual Page Number
-  // Uses last 3 bits (leaving a15) for page table index
-  wire [2:0] vpn = addr[14:12];
+  // Uses last 5 bits (leaving a15) for page table index
+  wire [4:0] vpn = addr[14:10];
 
   // Check if the address is a MMU Ctrl Register
-  // There are a total of 16 ctrl register slots available for now
-  wire is_ctrl = (addr[15:4] == 12'h80F);  // Any of $80F0 to $80FF
+  // There are a total of 64 ctrl register slots ($8080 to $80BF)
+  wire is_ctrl = (addr[15:6] == 10'h202);  // Any of $8080 to $80BF
+  wire [5:0] reg_off = addr[5:0];          // Register offset from $8080
 
   // ==========================
   // MODE FSM
@@ -81,7 +87,7 @@ module mmu6502 #(
   // wire [PPN_WIDTH-1:0] eff_ppn = (kernel == 1) ? addr[14:12] : ppn[vpn];
   // assign ram_addr = {eff_ppn, addr[11:0]};
 
-  assign ram_addr = {((kernel) ? addr[14:12] : ppn[vpn]), addr[11:0]};
+  assign ram_addr = {((kernel) ? addr[14:10] : ppn[vpn]), addr[9:0]};
 
 
 
@@ -93,11 +99,11 @@ module mmu6502 #(
   always @(negedge phi2 or negedge resetb) begin
 
     if (!resetb) begin	// Reset behaviour
-      for (i = 0; i < 8; i = i + 1) begin
+      for (i = 0; i < 32; i = i + 1) begin
         ppn[i] <= i[PPN_WIDTH-1:0];  // Fill table linearly (truncate high bits)
       end
-      w_bits <= 8'hFF;  // All pages writable
-      u_bits <= 8'h00;  // No pages user accessible (in kernel mode at reset)
+      w_bits <= 32'hFFFF_FFFF;  // All pages writable
+      u_bits <= 32'h0000_0000;  // No pages user accessible (in kernel mode at reset)
       kernel <= 1'b1;  // Start in kernel mode
     end
     else begin	// Control Register behaviour
@@ -107,13 +113,19 @@ module mmu6502 #(
         kernel <= 1'b1;
       end  // If write to control register (WHEN IN KERNEL MODE)
       else if (is_ctrl && !rwb && kernel) begin
-        if (~addr[3]) begin
-          ppn[addr[2:0]] <= data_in[PPN_WIDTH-1:0];  // Truncate to correct width
+        if (~reg_off[5]) begin                       // $00-$1F: page table
+          ppn[reg_off[4:0]] <= data_in[PPN_WIDTH-1:0];  // Truncate to correct width
         end else begin
-          case (addr[3:0])
-            4'h8: w_bits <= data_in;
-            4'h9: u_bits <= data_in;
-            4'hA: kernel <= data_in[0];  // Just take the LSB, non-zero means kernel mode
+          case (reg_off)
+            6'h20: u_bits[ 7: 0] <= data_in;           // pages  0- 7
+            6'h21: u_bits[15: 8] <= data_in;           // pages  8-15
+            6'h22: u_bits[23:16] <= data_in;           // pages 16-23
+            6'h23: u_bits[31:24] <= data_in;           // pages 24-31
+            6'h24: w_bits[ 7: 0] <= data_in;
+            6'h25: w_bits[15: 8] <= data_in;
+            6'h26: w_bits[23:16] <= data_in;
+            6'h27: w_bits[31:24] <= data_in;
+            6'h28: kernel <= data_in[0];  // Just take the LSB, non-zero means kernel mode
             default: begin
             end
           endcase
@@ -130,10 +142,27 @@ module mmu6502 #(
   // ==========================
 
   assign data_oe = (is_ctrl & rwb) & phi2;
-  assign data_out = (~addr[3]) ? {{(8 - PPN_WIDTH) {1'b0}}, ppn[addr[2:0]]}  // Ctrl register read
-      : ((addr[3:0] == 4'h8) ? w_bits  // Write permissions read
-      : ((addr[3:0] == 4'h9) ? u_bits  // User access permissions read
-      : 8'h0));
+  // Ctrl register read, same offsets as the write side (one byte at a time)
+  // (array read as a continuous assign so the always block below isn't
+  //  sensitive to every ppn entry, like the read mux in tb.v)
+  wire [PPN_WIDTH-1:0] ppn_rd = ppn[reg_off[4:0]];
+  reg [7:0] ctrl_rd;
+  always @(*) begin
+    if (~reg_off[5]) ctrl_rd = {{(8 - PPN_WIDTH) {1'b0}}, ppn_rd};
+    else case (reg_off)
+      6'h20: ctrl_rd = u_bits[ 7: 0];
+      6'h21: ctrl_rd = u_bits[15: 8];
+      6'h22: ctrl_rd = u_bits[23:16];
+      6'h23: ctrl_rd = u_bits[31:24];
+      6'h24: ctrl_rd = w_bits[ 7: 0];
+      6'h25: ctrl_rd = w_bits[15: 8];
+      6'h26: ctrl_rd = w_bits[23:16];
+      6'h27: ctrl_rd = w_bits[31:24];
+      6'h28: ctrl_rd = {7'b0, kernel};
+      default: ctrl_rd = 8'h00;           // $29-$3F reserved
+    endcase
+  end
+  assign data_out = ctrl_rd;
   wire ram_access = (addr[15] == 1'b0);
 
   // Fault testing

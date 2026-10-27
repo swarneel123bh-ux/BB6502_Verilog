@@ -13,11 +13,11 @@
 //                        straight from kernel ZP, no translation.
 //   * Syscall ARGS    -> written by the user into the USER's zero page while
 //                        still in user mode. The user's $34.. live in the
-//                        user's PHYSICAL page 0 = (MMU_PPN0 << 12) | offset.
+//                        user's PHYSICAL page 0 = (MMU_PPN0 << 10) | offset.
 //                        They are NOT visible at the kernel's own $34.
 //
 // Pointer payloads (e.g. the puts string) are USER VIRTUAL addresses. They are
-// translated by the POINTER'S OWN page, i.e. MMU_PPN[(va>>12)&7],
+// translated by the POINTER'S OWN page, i.e. MMU_PPN[(va>>10)&31],
 // not blindly through PPN0.
 // ============================================================================
 
@@ -57,22 +57,23 @@ enum {
 };
 
 // ---- address-space helpers --------------------------------------------------
-// MMU_PPN0 is the base of the 8 contiguous PPN registers ($80F0..$80F7), so
-// MMU_PPN0[v] is the physical page mapped to the user's virtual page v.
+// MMU_PPN0 is the base of the 32 contiguous PPN registers ($8080..$809F), so
+// MMU_PPN0[v] is the physical page mapped to the user's virtual page v
+// (1 KB pages: v = VA[14:10]).
 // These registers still hold the *user's* mapping while we are in the handler.
 
 // Physical address of a slot in the user's zero page (always virtual page 0).
 static volatile uint8_t* u_zp(uint8_t off) {
-  return (volatile uint8_t*)(((uint16_t)*MMU_PPN0 << 12) | off);
+  return (volatile uint8_t*)(((uint16_t)*MMU_PPN0 << MMU_PAGE_SHIFT) | off);
 }
 
 // Translate an arbitrary user VIRTUAL address to its physical address, using
 // the page register selected by the address's own top bits.
-// NOTE: only the start is translated. A buffer that crosses a 4 KB virtual
+// NOTE: only the start is translated. A buffer that crosses a 1 KB virtual
 // page boundary is NOT physically contiguous -- see do_block_* below.
 static uint8_t* u_ptr(uint16_t va) {
-  uint8_t page = MMU_PPN0[(va >> 12) & 0x07];
-  return (uint8_t*)(((uint16_t)page << 12) | (va & 0x0FFF));
+  uint8_t page = MMU_PPN0[(va >> MMU_PAGE_SHIFT) & (MMU_NPAGES - 1)];
+  return (uint8_t*)(((uint16_t)page << MMU_PAGE_SHIFT) | (va & MMU_PAGE_MASK));
 }
 
 // Assemble a 16-bit user pointer from two user-ZP arg slots.
@@ -110,7 +111,7 @@ static void do_puts(void) {
 static void do_block_read(void) {
   uint32_t lba = u_arg(OFF_ARG0_LO, OFF_ARG0_HI);
   uint8_t* buf = u_ptr(u_arg(OFF_ARG1_LO, OFF_ARG1_HI));
-  // WARNING: buf must not cross a 4 KB virtual-page boundary, or the tail of
+  // WARNING: buf must not cross a 1 KB virtual-page boundary, or the tail of
   // the 512-byte transfer lands in the wrong physical page. Enforce alignment
   // in the user ABI, or make block_read translate per-page.
   *u_zp(OFF_RET) = block_read(lba, buf);

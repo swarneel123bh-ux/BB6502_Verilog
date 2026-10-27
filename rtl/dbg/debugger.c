@@ -495,7 +495,7 @@ static void dbgDisplayHelp(void) {
   dbgConsoleEcho(
       "m [start] [end]: Display memory contents from a start location to an "
       "end location\n");
-  dbgConsoleEcho("r: Display the register contents and MMU state\n");
+  dbgConsoleEcho("r: Display the register contents, MMU mode and page table\n");
   dbgConsoleEcho("s [n]: Step the program with one/[n] instruction\n");
   dbgConsoleEcho("reset: Reset the machine and stop at the first instruction\n");
   dbgConsoleEcho("q: Quit (ends the simulation)\n");
@@ -673,10 +673,15 @@ static void dbgPrintRegisters(void) {
   for (int i = 0; i < 8; i++)
     flags[i] = (r.p & (0x80 >> i)) ? names[i] : '.';
   flags[8] = '\0';
-  dbgConsoleEcho("flags=%s  MMU=%s  PPN[0..7]=", flags,
+  dbgConsoleEcho("flags=%s  MMU=%s\n", flags,
                  simMmuIsKernel() ? "kernel" : "user");
-  for (int i = 0; i < 8; i++)
-    dbgConsoleEcho("%u ", simMmuPpn(i));
+  // Page table, 1 KB pages: entry n maps virtual $nn00 (n << 10)
+  dbgConsoleEcho("PPN");
+  for (int i = 0; i < SIM_MMU_NPAGES; i++) {
+    if ((i & 7) == 0)
+      dbgConsoleEcho("%s[%2d..%2d]", i ? "  " : " ", i, i + 7);
+    dbgConsoleEcho(" %2u", simMmuPpn(i));
+  }
   dbgConsoleEcho("\n");
   return;
 }

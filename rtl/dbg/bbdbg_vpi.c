@@ -30,6 +30,8 @@
 #define RAM_WORDS     32768   // tb.ram  [0:32767]   physical RAM
 #define ROM_WORDS     32512   // tb.rom  [0:32511]   CPU $8100-$FFFF
 #define ROM_BASE      0x8100
+#define PAGE_SHIFT    10      // MMU page size = 1 KB (rtl/mmu6502.v)
+#define PAGE_MASK     0x03FF
 
 // ─── Handles into the model (see rtl/tb.v, rtl/mmu6502.v, Arlet's cpu.v) ─────
 static vpiHandle hRam;        // tb.ram                  physical RAM array
@@ -37,12 +39,12 @@ static vpiHandle hRom;        // tb.rom                  boot ROM array
 static vpiHandle hRegs;       // tb.dut.regfile.regs     [0]=X [1]=Y [2]=A [3]=S
 static vpiHandle hP;          // tb.dut.P                NV1BDIZC flags
 static vpiHandle hMmuKernel;  // tb.mmu.kernel           1 = no translation
-static vpiHandle hMmuPpn;     // tb.mmu.ppn              page table [0:7]
+static vpiHandle hMmuPpn;     // tb.mmu.ppn              page table [0:31]
 static vpiHandle hResetReq;   // tb.dbg_reset_req        debugger reset request
 
 // Word handles are created on first use and kept (icarus hands out a new
 // object per vpi_handle_by_index call).
-static vpiHandle *ramWord, *romWord, regWord[4], ppnWord[8];
+static vpiHandle *ramWord, *romWord, regWord[4], ppnWord[SIM_MMU_NPAGES];
 
 // Argument handles of the (single) call site of each task, cached
 static vpiHandle fetchArgs[2], txArg, faultArgs[3];
@@ -79,18 +81,19 @@ static vpiHandle lookup(const char *name, bool *ok) {
 bool simMmuIsKernel(void) { return readInt(hMmuKernel) & 1; }
 
 uint8_t simMmuPpn(int vpage) {
-  return (uint8_t)readInt(wordOf(hMmuPpn, ppnWord, vpage & 7));
+  return (uint8_t)readInt(wordOf(hMmuPpn, ppnWord, vpage & (SIM_MMU_NPAGES - 1)));
 }
 
 // Same decode as the testbench's read mux: RAM goes through the MMU
-// (identity in kernel mode, ppn[VA[14:12]] in user mode), ROM is direct.
+// (identity in kernel mode, ppn[VA[14:10]] in user mode), ROM is direct.
 bool simReadMem(uint16_t addr, uint8_t *out) {
   if (addr < 0x8000) {
     uint32_t paddr;
     if (simMmuIsKernel())
       paddr = addr;
     else
-      paddr = ((uint32_t)simMmuPpn((addr >> 12) & 7) << 12) | (addr & 0x0FFF);
+      paddr = ((uint32_t)simMmuPpn((addr >> PAGE_SHIFT) & (SIM_MMU_NPAGES - 1)) << PAGE_SHIFT)
+              | (addr & PAGE_MASK);
     *out = (uint8_t)readInt(wordOf(hRam, ramWord, paddr & (RAM_WORDS - 1)));
     return true;
   }

@@ -4,7 +4,7 @@ A 65C02 computer simulated at the hardware level, with its own operating system 
 
 - **Hardware (Verilog, Icarus Verilog):**
   - Arlet Ottens' 65C02 core (with a small `VPB` addition)
-  - a custom **MMU** (8 × 4 KB pages, kernel/user modes, faults → NMI)
+  - a custom **MMU** (32 × 1 KB pages, kernel/user modes, faults → NMI)
   - 32 KB RAM and a 32 KB boot ROM
   - a serial port (ACIA), a text "GPU" stream, and a 512-byte-sector disk controller
 - **Software (cc65 C + ca65 assembly):**

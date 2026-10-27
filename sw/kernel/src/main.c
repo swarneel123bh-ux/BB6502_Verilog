@@ -24,7 +24,7 @@ int main(void) {
 	*(uint8_t*)0xFF = (uint8_t)((uint16_t)brk_handler >> 8);	// HIGH BYTE
 
   // Identity map pages for kernel
-  for (i = 0; i < 8; ++i) {
+  for (i = 0; i < MMU_NPAGES; ++i) {
   	*(MMU_PPN0+i) = i;
   }
 

@@ -14,7 +14,7 @@ All of this is in `rtl/tb.v` unless noted otherwise. Addresses are CPU addresses
 | `AB` | Read | Write |
 |---|---|---|
 | `$0000-$7FFF` | `ram[mmu paddr]` | `ram[mmu paddr]` |
-| `$80F0-$80FF` | MMU register | MMU register (kernel mode only) |
+| `$8080-$80BF` | MMU register | MMU register (kernel mode only) |
 | `$8000` | `acia_rx_data` | Byte printed on vvp's stdout (debug build: the debugger's terminal pane) |
 | `$8001` | `{6'b0, acia_tx_ready, acia_rx_valid}` | — |
 | `$8002` | — | Byte written to `/tmp/bb6502_gpu` |
@@ -65,19 +65,22 @@ In the model the transfer completes instantly, within the same clock as the comm
 
 ## MMU
 
-`rtl/mmu6502.v`, instantiated with `PPN_WIDTH = 3`:
+`rtl/mmu6502.v`, instantiated with `PPN_WIDTH = 5`. Pages are **1 KB**: 32 virtual pages map onto 32 physical pages.
 
 ```
                      kernel mode:  paddr = AB[14:0]
- AB[14:12] = vpn ──► user mode:    paddr = { ppn[vpn], AB[11:0] }     (15 bits = 32 KB)
+ AB[14:10] = vpn ──► user mode:    paddr = { ppn[vpn], AB[9:0] }      (15 bits = 32 KB)
 ```
+
+The registers are direct-mapped at `$8080-$80BF`:
 
 | Register | Meaning |
 |---|---|
-| `$80F0+n` (n = 0–7) | `ppn[n]`: the physical page for virtual page n |
-| `$80F8` | `w_bits`: bit n = user may write virtual page n |
-| `$80F9` | `u_bits`: bit n = user may access virtual page n |
-| `$80FA` | Mode: bit 0 = 1 kernel, 0 user |
+| `$8080+n` (n = 0–31) | `ppn[n]`: the physical page for virtual page n (low 5 bits) |
+| `$80A0-$80A3` | `u_bits`: user may access the page. Byte k, bit n = virtual page 8k+n. |
+| `$80A4-$80A7` | `w_bits`: user may write the page. Same layout. |
+| `$80A8` | Mode: bit 0 = 1 kernel, 0 user |
+| `$80A9-$80BF` | Reserved (read as 0) |
 
 Rules:
 - **Entering kernel mode:** at reset, on any vector fetch (`VPB` low: BRK, IRQ, NMI), and on any fault.

@@ -26,24 +26,19 @@ DISK_STATUS     = $80E5
 DISK_DATA       = $80E6
 DISK_DPTR       = $80E7
 
-; MMU REGISTERS ($80F0 - $80FF)
-; PPN Entries (Virtual Pages 0-7)
-MMU_PPN0        = $80F0
-MMU_PPN1        = $80F1
-MMU_PPN2        = $80F2
-MMU_PPN3        = $80F3
-MMU_PPN4        = $80F4
-MMU_PPN5        = $80F5
-MMU_PPN6        = $80F6
-MMU_PPN7        = $80F7
+; MMU REGISTERS ($8080 - $80BF), 1 KB pages: VPN = VA[14:10]
+; Page table: one entry per virtual page, MMU_PPN0+n = ppn[n] (n = 0..31)
+MMU_PPN0        = $8080
+MMU_NPAGES      = 32
+MMU_PAGE_SHIFT  = 10     ; page size = 1 << 10 = 1 KB
 
-; Control & Permissions
-MMU_WBITS       = $80F8  ; Write permissions per page
-MMU_UBITS       = $80F9  ; User-access permissions per page
-MMU_CTRL        = $80FA  ; LSB = 1 (Kernel), 0 (User)
+; Control & Permissions (4 bytes each: byte k bit n = virtual page 8k+n)
+MMU_UBITS       = $80A0  ; User-access permissions, $80A0-$80A3
+MMU_WBITS       = $80A4  ; Write permissions,       $80A4-$80A7
+MMU_CTRL        = $80A8  ; LSB = 1 (Kernel), 0 (User)
 
 ; Export for use in other files
 ; // .export ACIA_DATA, ACIA_STATUS, GPU_DATA, GPU_STATUS
 ; // .export DISK_LBA0, DISK_LBA1, DISK_LBA2, DISK_LBA3, DISK_CMD, DISK_STATUS, DISK_DATA, DISK_DPTR
-; // .export MMU_PPN0, MMU_PPN1, MMU_PPN2, MMU_PPN3, MMU_PPN4, MMU_PPN5, MMU_PPN6, MMU_PPN7
+; // .export MMU_PPN0, MMU_NPAGES, MMU_PAGE_SHIFT
 ; // .export MMU_WBITS, MMU_UBITS, MMU_CTRL

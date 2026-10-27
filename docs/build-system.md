@@ -47,7 +47,7 @@ tools/gpu.c ─cc (SDL2, SDL2_ttf)─► gpu
 | Config | Places |
 |---|---|
 | `sw/boot/boot.cfg` | ROM from `$8100` (NOP-filled) and vectors at `$FFF8-$FFFF` |
-| `sw/kernel/kernel.cfg` | Zero page `$00-$1F`, BBX header at `$0200`, everything else at `$0206-$0FFF`. **The kernel must fit in its 4 KB page**; the area is filled, so `kernel.bbx` is always 3584 bytes. |
+| `sw/kernel/kernel.cfg` | Zero page `$00-$1F`, BBX header at `$0200`, code and data at `$0206-$0FFF` (filled, so `kernel.bbx` is always 3584 bytes). Kernel-only BSS (process table, disk buffer) lives in `KHIGH` at `$7000-$7CFF`, which is not part of the image. |
 | `sw/prog/prog.cfg` | Syscall ABI block (position and size from `common.mk`), cc65 zero page right after it up to `$FF`, header at `$1000`, program from `$1006` |
 
 ## Disk LBAs

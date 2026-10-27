@@ -20,13 +20,33 @@ PROC_STATE_WAITING  = $01
 PROC_STATE_RUNNING  = $02
 
 
-; Struct field offsets (PROCESS padded to 32 bytes)
+; Struct field offsets (PROCESS padded to 64 bytes, see include/proc.h)
 PROC_OFF_STATE      = 0
 PROC_OFF_SP         = 13
-PROC_OFF_PPN0       = 14    ; ppn_table[0..7] -> 14..21
+PROC_OFF_PPN0       = 14    ; ppn_table[0..31] -> 14..45
+PROC_SIZE_SHIFT     = 6     ; sizeof(PROCESS) = 1 << 6 = 64
 
 ; yield_rti address, so that we can simply jump (is in ROM)
 yield_rti = $FFF8
+
+; ----------------------------------------------------------------
+; RESTORE_PPN: copy ppn_table[0..31] of *ZP_CURR_PROC_PTR into the MMU.
+; A macro, not a subroutine: it runs after TXS has switched SP to the
+; next process, and a JSR there would push onto the kernel's physical
+; stack page at that process's SP. Clobbers A, X, Y.
+; ----------------------------------------------------------------
+.macro RESTORE_PPN
+  .local loop
+  ldy #PROC_OFF_PPN0
+  ldx #0
+loop:
+  lda (ZP_CURR_PROC_PTR),y
+  sta MMU_PPN0,x
+  iny
+  inx
+  cpx #MMU_NPAGES
+  bne loop
+.endmacro
 
 .segment "CODE"
 .export do_yield
@@ -58,31 +78,16 @@ do_yield:
   ldy #PROC_OFF_SP
   sta (ZP_CURR_PROC_PTR),y
 
-  ; save PPN table at offsets 14..21
+  ; save PPN table at offsets 14..45
   ldy #PROC_OFF_PPN0
-  lda MMU_PPN0
+  ldx #0
+@save_ppn:
+  lda MMU_PPN0,x
   sta (ZP_CURR_PROC_PTR),y
   iny
-  lda MMU_PPN1
-  sta (ZP_CURR_PROC_PTR),y
-  iny
-  lda MMU_PPN2
-  sta (ZP_CURR_PROC_PTR),y
-  iny
-  lda MMU_PPN3
-  sta (ZP_CURR_PROC_PTR),y
-  iny
-  lda MMU_PPN4
-  sta (ZP_CURR_PROC_PTR),y
-  iny
-  lda MMU_PPN5
-  sta (ZP_CURR_PROC_PTR),y
-  iny
-  lda MMU_PPN6
-  sta (ZP_CURR_PROC_PTR),y
-  iny
-  lda MMU_PPN7
-  sta (ZP_CURR_PROC_PTR),y
+  inx
+  cpx #MMU_NPAGES
+  bne @save_ppn
 
   ; --- pick next process (updates _plist_idx) ---
   jsr _schedule_process
@@ -101,46 +106,21 @@ do_yield:
   tax
   txs
 
-  ; restore PPN table (offsets 14..21)
-  ldy #PROC_OFF_PPN0
-  lda (ZP_CURR_PROC_PTR),y
-  sta MMU_PPN0
-  iny
-  lda (ZP_CURR_PROC_PTR),y
-  sta MMU_PPN1
-  iny
-  lda (ZP_CURR_PROC_PTR),y
-  sta MMU_PPN2
-  iny
-  lda (ZP_CURR_PROC_PTR),y
-  sta MMU_PPN3
-  iny
-  lda (ZP_CURR_PROC_PTR),y
-  sta MMU_PPN4
-  iny
-  lda (ZP_CURR_PROC_PTR),y
-  sta MMU_PPN5
-  iny
-  lda (ZP_CURR_PROC_PTR),y
-  sta MMU_PPN6
-  iny
-  lda (ZP_CURR_PROC_PTR),y
-  sta MMU_PPN7
+  ; restore PPN table (offsets 14..45)
+  RESTORE_PPN
   jmp (RET_USER_MODE)
 
 
 ; ----------------------------------------------------------------
-; calc_proc_ptr: ZP_CURR_PROC_PTR = &_plist + (_plist_idx * 32)
-; Clobbers A. plist_idx < 8 so idx*32 < 256 (no high-byte carry
+; calc_proc_ptr: ZP_CURR_PROC_PTR = &_plist + (_plist_idx * 64)
+; Clobbers A. plist_idx < 4 so idx*64 < 256 (no high-byte carry
 ; from the shift; adc #<_plist may still carry, handled below).
 ; ----------------------------------------------------------------
 calc_proc_ptr:
   lda _plist_idx
+  .repeat PROC_SIZE_SHIFT
   asl
-  asl
-  asl
-  asl
-  asl                 ; A = plist_idx * 32
+  .endrepeat          ; A = plist_idx * 64
   clc
   adc #<_plist
   sta ZP_CURR_PROC_PTR
@@ -154,9 +134,14 @@ calc_proc_ptr:
 .export _sched_start
 _sched_start:
   stz _plist_idx
+  ; let user reach all 32 virtual pages (4 permission bytes each)
   lda #$ff
-  sta MMU_UBITS          ; let user reach all 8 virtual pages (its own phys pages)
-  sta MMU_WBITS
+  ldx #3
+@open_all:
+  sta MMU_UBITS,x
+  sta MMU_WBITS,x
+  dex
+  bpl @open_all
 
 
   jsr calc_proc_ptr       ; ZP_CURR_PROC_PTR = &plist[0]
@@ -172,28 +157,5 @@ _sched_start:
 
 
   ; Load the mmu ppns
-  ldy #14
-  lda (ZP_CURR_PROC_PTR),y
-  sta MMU_PPN0
-  iny
-  lda (ZP_CURR_PROC_PTR),y
-  sta MMU_PPN1
-  iny
-  lda (ZP_CURR_PROC_PTR),y
-  sta MMU_PPN2
-  iny
-  lda (ZP_CURR_PROC_PTR),y
-  sta MMU_PPN3
-  iny
-  lda (ZP_CURR_PROC_PTR),y
-  sta MMU_PPN4
-  iny
-  lda (ZP_CURR_PROC_PTR),y
-  sta MMU_PPN5
-  iny
-  lda (ZP_CURR_PROC_PTR),y
-  sta MMU_PPN6
-  iny
-  lda (ZP_CURR_PROC_PTR),y
-  sta MMU_PPN7
+  RESTORE_PPN
   jmp (RET_USER_MODE)

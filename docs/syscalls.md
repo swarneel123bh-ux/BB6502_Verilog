@@ -75,7 +75,7 @@ Kernel side:
 Passing arguments from C: cc65's default `__fastcall__` convention puts the **last** argument in A/X and pushes the earlier ones onto cc65's software stack. The callee must remove them. So `sys_block_read(lba, buf)` stores A/X as `buf`, then calls `popax` to take `lba` off the stack. `sw/prog/src/disktest.c` tests this end to end: it reads sector 0 and checks for the `55 AA` signature.
 
 Known problems:
-- **Block buffers can't cross pages.** A block buffer must not cross a 4 KB virtual page, because only the start address is translated.
+- **Block buffers can't cross pages.** A block buffer must not cross a 1 KB virtual page, because only the start address is translated. Align 512-byte buffers to 512 bytes to be safe.
 
 ## BBX executable format
 

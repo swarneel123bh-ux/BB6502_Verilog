@@ -55,14 +55,12 @@ _brk_handler:
 
 				lda MMU_PPN0				; Load the page number to get stack access
 				asl
-				asl
-				asl
-				asl									; Shift left to move into the a14 to a12 range
-				ora #$01						; Get the stack
+				asl									; Shift left into the a14 to a10 range (1 KB pages)
+				ora #$01						; Get the stack ($0100 is in virtual page 0)
 				sta ZP_MEM_PTR+1		; Store in high byte
 				stx ZP_MEM_PTR			; Store stack pointer data in low byte to get full indirect addr
 				ldy #1
-				lda (ZP_MEM_PTR),y	; saved status register (MMU_PPN0 << 12 | $01(sp))
+				lda (ZP_MEM_PTR),y	; saved status register (MMU_PPN0 << 10 | $01(sp))
 				and #$10						; Get the B flag of the status register (if set then brk)
 				bne @brk_path
 				jmp irq_path				; Interrupt was a software one, treat as irq
@@ -84,20 +82,16 @@ _brk_handler:
 
 				; ---- translate that USER VA to a physical address ----
 				; The inline byte is in the user's CODE page, not the stack page, so
-				; select the PPN by the pointer's OWN virtual page (VA[14:12]).
+				; select the PPN by the pointer's OWN virtual page (VA[14:10]).
 				lda ZP_SYS_NUM_PTR+1
 				lsr
 				lsr
-				lsr
-				lsr
-				and #$07                    ; X = vpage of the syscall-number pointer
+				and #$1f                    ; X = vpage of the syscall-number pointer
 				tax
 				lda ZP_SYS_NUM_PTR+1
-				and #$0f                    ; keep VA[11:8] (offset bits within the page)
+				and #$03                    ; keep VA[9:8] (offset bits within the page)
 				sta ZP_SYS_NUM_PTR+1
-				lda MMU_PPN0,x              ; $80F0,x : physical page mapped to that vpage
-				asl
-				asl
+				lda MMU_PPN0,x              ; $8080,x : physical page mapped to that vpage
 				asl
 				asl
 				ora ZP_SYS_NUM_PTR+1

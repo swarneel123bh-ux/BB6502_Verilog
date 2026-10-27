@@ -59,7 +59,7 @@ Everything before `sched_start` runs in **kernel mode**, where the MMU passes ad
 | From → to | How |
 |---|---|
 | User → kernel | `BRK` + a syscall-number byte. The CPU fetches the IRQ/BRK vector at `$FFFE`, which pulls `VPB` low, and the MMU switches to kernel mode. The vector points at `brk_trampoline` (`JMP ($00FE)`), which jumps to the kernel's `brk_handler`. |
-| Kernel → user | `JMP ($FFF8)` → `ret_user_mode` in ROM: `STZ $80FA` (user mode), then `RTI`. The RTI pops the status and PC from the process's own stack page. |
+| Kernel → user | `JMP ($FFF8)` → `ret_user_mode` in ROM: `STZ $80A8` (user mode), then `RTI`. The RTI pops the status and PC from the process's own stack page. |
 | Fault | Any MMU violation forces kernel mode and raises NMI. The boot ROM's NMI handler is only `RTI` for now. |
 
 ## Repository layout

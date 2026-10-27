@@ -5,7 +5,7 @@
 //   CPU     Arlet Ottens' 65C02 (verilog-65C02-microcode/generic, with a VPB
 //           output added for the MMU), 100 MHz simulated clock, AD registered
 //           into AB as Arlet's README describes for asynchronous memory.
-//   MMU     mmu6502.v: 8 x 4 KB virtual pages -> 8 physical pages (32 KB RAM).
+//   MMU     mmu6502.v: 32 x 1 KB virtual pages -> 32 physical pages (32 KB RAM).
 //           Faults are routed to NMI.
 //   Memory  ram[0:32767] physical RAM, rom[0:32511] = CPU $8100-$FFFF loaded
 //           from build/bootrom.hex.
@@ -21,7 +21,7 @@
 //             $80E5 disk STATUS bit7 = error, bit0 = busy
 //             $80E6 disk DATA   buffer byte at DPTR, DPTR auto-increments
 //             $80E7 disk DPTR   any write resets the buffer pointer to 0
-//             $80F0-$80FA MMU registers (handled inside mmu6502)
+//             $8080-$80BF MMU registers (handled inside mmu6502)
 //           Unmapped I/O reads return $FF.
 //   Files   build/disk.img (the disk), /tmp/bb6502_in (keyboard input, a
 //           regular file polled every 200 clocks; a FIFO here would block
@@ -70,10 +70,10 @@ module tb;
     if (RDY) AB <= AD;
 
   // ---- MMU ----
-  localparam PPN_W = 3;                  // 8 physical pages = 32KB
+  localparam PPN_W = 5;                  // 32 physical pages of 1 KB = 32KB
   wire [7:0]            mmu_data_out;
   wire                  mmu_data_oe;
-  wire [11+PPN_W:0]     ram_paddr;       // physical address out of MMU
+  wire [9+PPN_W:0]      ram_paddr;       // physical address out of MMU (10-bit page offset)
   wire                  faultb;
 
 
@@ -159,7 +159,7 @@ module tb;
   // Combinational read mux (async memory model)
   always @(*) begin
     if (AB[15] == 1'b0) DI = ram_q;                                   // translated by MMU
-    else if ((AB & 16'hFFF0) == 16'h80F0) DI = mmu_data_out;          // MMU control regs
+    else if ((AB & 16'hFFC0) == 16'h8080) DI = mmu_data_out;          // MMU control regs $8080-$80BF
     else if (AB == 16'h8000) DI = acia_rx_data;
     else if (AB == 16'h8001) DI = {6'b0, acia_tx_ready, acia_rx_valid};
     else if (AB == 16'h8003) DI = 8'h01;                             	// GPU TX always ready

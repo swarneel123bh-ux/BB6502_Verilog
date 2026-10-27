@@ -18,10 +18,11 @@ typedef struct process_struct {
   uint8_t state, exit_code, lba, nblocks;
   char name[PROC_NAME_MAX+1];   // offsets 4..12
   uint8_t SP;                   // offset 13
-  uint8_t mmu_ppn_table[8];     // offsets 14..21
-  uint8_t _pad[10];             // pad to 32
+  uint8_t mmu_ppn_table[32];    // offsets 14..45 (one per 1 KB virtual page)
+  uint8_t _pad[18];             // pad to 64 (yield.s: PROC_SIZE_SHIFT = 6)
 } PROCESS;
-// typedef char _proc_size_check[(sizeof(PROCESS) == 32) ? 1 : -1];
+// Compile-time check: yield.s indexes plist with plist_idx << 6
+typedef char _proc_size_check[1 - 2 * (sizeof(PROCESS) != 64)];
 extern PROCESS plist[4];	// only 4 for now, later redefine to 8
 extern uint8_t block_buf[512];
 extern uint8_t plist_idx;

@@ -73,7 +73,7 @@ The BB6502 software doesn't execute `STP` yet. Making `sys_exit` end with `STP` 
 - **Instruction boundaries.** The debugger runs at every opcode fetch (the cycle with `sync` high). Registers are sampled half a cycle later, after the previous instruction's register write-back has landed. So `r` shows the state just before the instruction at `PC` executes. After `reset; s 4` (`SEI CLD LDX #$FF TXS`), `r` shows `SP=ff X=ff`.
 - **Registers** come from Arlet's register file: `regs[2]` = A, `[0]` = X, `[1]` = Y, `[3]` = S. Flags come from `P`. The PC is the fetch address.
 - **Memory** is shown through the MMU's current state, the same way the CPU sees it:
-  - **`$0000-$7FFF`:** in kernel mode, physical = virtual. In user mode it goes through `ppn[VA[14:12]]`. Stopping inside a process therefore shows *that process's* memory: `m 0x1000 0x1005` shows its BBX header.
+  - **`$0000-$7FFF`:** in kernel mode, physical = virtual. In user mode it goes through `ppn[VA[14:10]]` (1 KB pages). Stopping inside a process therefore shows *that process's* memory: `m 0x1000 0x1005` shows its BBX header.
   - **`$8000-$80FF`** is shown as `..`. Reading a device register can change it (reading the ACIA clears RX-valid), so the debugger never touches the I/O window.
   - **`$8100-$FFFF`** is the boot ROM.
 - **Disassembly** covers the full WDC 65C02 instruction set. `BRK` is shown as `BRK #$nn`, because on BB6502 the byte after it is the syscall number.
