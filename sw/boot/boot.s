@@ -1,3 +1,23 @@
+; ==========================================================================
+; boot.s — BB6502 boot ROM ($8100-$FFFF, built into build/bootrom.hex)
+;
+; Runs at reset in MMU kernel mode (no address translation):
+;   1. SEI/CLD, SP=$FF, point the BRK vector at $FE/$FF to early_brk
+;   2. print the banner (ACIA + GPU)
+;   3. read the boot record from LBA 100 into $0200 and check 'BBBR'
+;   4. load kernel_nsec sectors from kernel_lba to $0200
+;   5. check the kernel's BBX header ('BX') and jump to its entry point
+;
+; It also provides the fixed vectors the kernel relies on:
+;   $FFF8 ret_user_mode   STZ MMU_CTRL + RTI: drop to user mode and
+;                         resume a process from its own stack
+;   $FFFA nmi_handler     RTI (MMU faults arrive as NMI; ignored for now)
+;   $FFFC reset
+;   $FFFE brk_trampoline  JMP ($00FE): BRK/IRQ go to the handler the
+;                         kernel installed in zero page
+;
+; puts_inline waits for ACIA_STATUS bit 1 (TX ready) and GPU_STATUS bit 0.
+; ==========================================================================
 .setcpu "65C02"
 .include "./devices.s"
 
@@ -243,7 +263,7 @@ puts_inline:
 				pha
 @acia_wait:
 				lda ACIA_STATUS
-				and #$01
+				and #$02
 				beq @acia_wait
 				pla
 				sta ACIA_DATA

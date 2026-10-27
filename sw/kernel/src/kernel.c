@@ -1,8 +1,16 @@
+// ==========================================================================
+// kernel.c — kernel console output
+//
+// Every string goes to both the ACIA (vvp's terminal / debugger pane) and
+// the GPU stream (SDL window).
+//
+// Status bits: ACIA bit 1 = TX ready (bit 0 is RX valid); GPU bit 0 = ready.
+// ==========================================================================
 #include "include/kernel.h"
 #include "include/devices.h"
 
 void k_putc(char c) {
-  while (!(*ACIA_STATUS & 0x01)); // Wait for ACIA TX ready
+  while (!(*ACIA_STATUS & 0x02)); // Wait for ACIA TX ready
   *ACIA_DATA = c;
 }
 

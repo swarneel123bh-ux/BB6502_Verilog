@@ -1,3 +1,36 @@
+// ============================================================================
+// tb.v — the BB6502 machine (top level, simulated with Icarus Verilog)
+//
+// Not just a testbench: this is the whole computer.
+//   CPU     Arlet Ottens' 65C02 (verilog-65C02-microcode/generic, with a VPB
+//           output added for the MMU), 100 MHz simulated clock, AD registered
+//           into AB as Arlet's README describes for asynchronous memory.
+//   MMU     mmu6502.v: 8 x 4 KB virtual pages -> 8 physical pages (32 KB RAM).
+//           Faults are routed to NMI.
+//   Memory  ram[0:32767] physical RAM, rom[0:32511] = CPU $8100-$FFFF loaded
+//           from build/bootrom.hex.
+//   I/O     decoded below in the $8000-$80FF window:
+//             $8000 ACIA data   W: byte to vvp's stdout   R: last RX byte
+//             $8001 ACIA status bit0 = RX byte valid (cleared by reading $8000)
+//                               bit1 = TX ready (6850 TDRE; busy for
+//                                      ACIA_TX_CYCLES after each write)
+//             $8002 GPU data    W: byte to /tmp/bb6502_gpu (tools/gpu.c)
+//             $8003 GPU status  always $01 (ready)
+//             $80E0-$80E3  disk LBA (32-bit LE)
+//             $80E4 disk CMD    1 = read sector into buffer, 2 = write buffer
+//             $80E5 disk STATUS bit7 = error, bit0 = busy
+//             $80E6 disk DATA   buffer byte at DPTR, DPTR auto-increments
+//             $80E7 disk DPTR   any write resets the buffer pointer to 0
+//             $80F0-$80FA MMU registers (handled inside mmu6502)
+//           Unmapped I/O reads return $FF.
+//   Files   build/disk.img (the disk), /tmp/bb6502_in (keyboard input, a
+//           regular file polled every 200 clocks; a FIFO here would block
+//           the simulation), /tmp/bb6502_gpu (GPU output stream, a FIFO).
+//
+// Built twice by rtl/rtl.mk: build/sim.vvp (normal) and build/sim_dbg.vvp
+// with -DBBDBG, which adds the debugger hooks near the end of this file.
+// Run from the project root (file paths here are relative to it).
+// ============================================================================
 `timescale 1ns/1ps
 
 module tb;
@@ -68,6 +101,7 @@ module tb;
   // ---- ACIA + GPU state ----
   reg [7:0] acia_rx_data = 0;
   reg       acia_rx_valid = 0;
+  reg				acia_tx_ready = 1;
 
   // ---- Disk peripheral state ----
   reg [31:0] disk_lba   = 0;
@@ -114,21 +148,52 @@ module tb;
     end
   endtask
 
+  // Array reads as continuous assignments. Indexing an array inside
+  // always @(*) makes icarus put every word of the array in the block's
+  // sensitivity list (~65K words here): ~15 s to compile and a slower
+  // simulation. A continuous assign is tracked per word instead.
+  wire [7:0] ram_q  = ram[ram_paddr];
+  wire [7:0] rom_q  = rom[AB - 16'h8100];   // only selected when AB >= $8100
+  wire [7:0] dbuf_q = disk_buf[disk_dptr];
+
   // Combinational read mux (async memory model)
   always @(*) begin
-    if (AB[15] == 1'b0) DI = ram[ram_paddr];                          // translated by MMU
+    if (AB[15] == 1'b0) DI = ram_q;                                   // translated by MMU
     else if ((AB & 16'hFFF0) == 16'h80F0) DI = mmu_data_out;          // MMU control regs
     else if (AB == 16'h8000) DI = acia_rx_data;
-    else if (AB == 16'h8001) DI = {7'b0, acia_rx_valid};
+    else if (AB == 16'h8001) DI = {6'b0, acia_tx_ready, acia_rx_valid};
     else if (AB == 16'h8003) DI = 8'h01;                             	// GPU TX always ready
     else if (AB == 16'h80E0) DI = disk_lba[7:0];
     else if (AB == 16'h80E1) DI = disk_lba[15:8];
     else if (AB == 16'h80E2) DI = disk_lba[23:16];
     else if (AB == 16'h80E3) DI = disk_lba[31:24];
     else if (AB == 16'h80E5) DI = {disk_err, 6'b0, disk_busy};
-    else if (AB == 16'h80E6) DI = disk_buf[disk_dptr];
-    else if (AB >= 16'h8100) DI = rom[AB - 16'h8100];
+    else if (AB == 16'h80E6) DI = dbuf_q;
+    else if (AB >= 16'h8100) DI = rom_q;
     else DI = 8'hFF;
+  end
+
+  // Tx behaviour
+  localparam ACIA_TX_CYCLES = 87;     // 115200 baud, 10 bits/char, 1 MHz CPU
+  reg [15:0] acia_tx_count = 0;
+  always @(posedge clk) begin
+    if (reset) begin
+    	acia_tx_ready <= 1;							// Start ready
+     	acia_tx_count <= 0;
+    end else if (WE & RDY & (AB == 16'h8000)) begin
+    	if (!acia_tx_ready) begin
+     		$display("[acia] TX overrun: byte %02x at t=%0t", DO, $time);
+     	end
+    	acia_tx_count <= ACIA_TX_CYCLES - 1;	// Set counter to corrent count
+     	acia_tx_ready <= 0;								// Reset ready flag
+    end else if (!acia_tx_ready) begin
+      if (acia_tx_count == 0) begin			// If count finished, set ready flag
+      	acia_tx_ready <= 1;
+       	acia_tx_count <= 0;
+      end else begin										// If not finished, recude count by 1
+      	acia_tx_count <= acia_tx_count - 1;
+      end
+    end
   end
 
   // Writes (clocked)
@@ -138,7 +203,11 @@ module tb;
       if (AB[15] == 1'b0)
         ram[ram_paddr] <= DO;                       // translated
       else if (AB == 16'h8000)
+`ifdef BBDBG
+        $bbdbg_tx(DO);                              // debugger terminal pane
+`else
         $write("%c", DO);
+`endif
       else if (AB == 16'h8002) begin
         $fwrite(gpu_fd, "%c", DO);
         $fflush(gpu_fd);
@@ -170,7 +239,8 @@ module tb;
     if (~WE && AB == 16'h8000 && acia_rx_valid) acia_rx_valid <= 0;
   end
 
-  // stdin polling via FIFO
+  // stdin polling: /tmp/bb6502_in is a regular file that gpu.c (and the
+  // debugger) append keys to; we re-seek to the next unread byte each poll
   integer stdin_pos = 0;
   integer ch;
   integer poll_counter = 0;
@@ -193,8 +263,52 @@ module tb;
   // ---- Optional: log faults so we can see when the MMU traps ----
   always @(posedge clk)
     if (~faultb)
+`ifdef BBDBG
+      $bbdbg_fault(AB, WE, ram_paddr);              // shown in the debugger console
+`else
       $display("[mmu] FAULT  AB=%04x  WE=%b  paddr=%05x",
                AB, WE, ram_paddr);
+`endif
+
+`ifdef BBDBG
+  // ---- Debugger hooks (only in sim_dbg.vvp, built with -DBBDBG) ----
+  // The debugger is a VPI module (rtl/dbg/) that gets control once per
+  // instruction. At the posedge that ends an opcode-fetch (sync) cycle we
+  // latch the opcode's address and value; at the following negedge the
+  // previous instruction's register write-back (done on that posedge) is
+  // visible, so $bbdbg_fetch sees a consistent "about to execute dbg_pc"
+  // state. While $bbdbg_fetch has not returned, simulation time is frozen.
+  reg  [15:0] dbg_pc    = 0;
+  reg  [7:0]  dbg_op    = 0;
+  reg         dbg_fetch = 0;
+  // Software reset requested by the debugger (written through VPI):
+  // hold `reset` for 16 cycles, like the power-on reset in the initial block.
+  reg         dbg_reset_req = 0;
+  integer     dbg_rst_cnt   = 0;
+
+  always @(posedge clk) begin
+    dbg_fetch <= sync & RDY & ~reset & ~dbg_reset_req & (dbg_rst_cnt == 0);
+    if (sync & RDY) begin
+      dbg_pc <= AB;
+      dbg_op <= DI;
+    end
+  end
+
+  always @(negedge clk)
+    if (dbg_fetch) $bbdbg_fetch(dbg_pc, dbg_op);
+
+  always @(posedge clk) begin
+    if (dbg_reset_req) begin
+      dbg_reset_req <= 0;
+      dbg_rst_cnt   <= 16;
+      reset         <= 1;
+    end else if (dbg_rst_cnt == 1) begin
+      dbg_rst_cnt   <= 0;
+      reset         <= 0;
+    end else if (dbg_rst_cnt > 1)
+      dbg_rst_cnt   <= dbg_rst_cnt - 1;
+  end
+`endif
 
   initial begin
   	// Traces

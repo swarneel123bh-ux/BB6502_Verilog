@@ -15,14 +15,28 @@ SDL_LDFLAGS    := $(shell pkg-config --libs   sdl2 SDL2_ttf 2>/dev/null || echo 
 CPU_SRCS       := $(wildcard $(CPU_DIR)/*.v)
 RTL_SRCS       := $(CPU_SRCS) $(TB_FILE) $(RTL_DIR)/mmu6502.v
 
-.PHONY: all sim gpu clean
+# Debugger: VPI module (C + ncurses) built with iverilog-vpi
+IVERILOG_VPI   := iverilog-vpi
+DBG_SRCS       := $(RTL_DIR)/dbg/bbdbg_vpi.c $(RTL_DIR)/dbg/debugger.c
+DBG_HDRS       := $(RTL_DIR)/dbg/debugger.h
+
+.PHONY: all sim gpu dbg clean
 
 all: sim gpu
 sim: $(SIM_VVP)
 gpu: $(GPU_BIN)
+dbg: $(SIM_DBG_VVP) $(DBG_VPI)
 
 $(SIM_VVP): $(RTL_SRCS) | $(BUILD_DIR)
 	$(IVERILOG) $(IVERILOG_FLAGS) -s $(TOP_MODULE) -o $@ $(RTL_SRCS)
+
+# Same design with the debugger hooks in tb.v enabled
+$(SIM_DBG_VVP): $(RTL_SRCS) | $(BUILD_DIR)
+	$(IVERILOG) $(IVERILOG_FLAGS) -DBBDBG -s $(TOP_MODULE) -o $@ $(RTL_SRCS)
+
+# iverilog-vpi writes <name>.vpi (and its .o files) into the current directory
+$(DBG_VPI): $(DBG_SRCS) $(DBG_HDRS) | $(BUILD_DIR)
+	cd $(BUILD_DIR) && $(IVERILOG_VPI) --name=bbdbg $(abspath $(DBG_SRCS)) -lncurses
 
 $(GPU_BIN): $(TOOLS_DIR)/gpu.c | $(BUILD_DIR)
 	$(CC) -O2 -Wall $(SDL_CFLAGS) -o $@ $< $(SDL_LDFLAGS)
@@ -31,4 +45,4 @@ $(BUILD_DIR):
 	mkdir -p $@
 
 clean:
-	rm -f $(SIM_VVP) $(GPU_BIN)
+	rm -f $(SIM_VVP) $(GPU_BIN) $(SIM_DBG_VVP) $(DBG_VPI)

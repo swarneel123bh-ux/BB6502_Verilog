@@ -35,12 +35,12 @@ $(BUILD_DIR)/%.o: $(KERNEL_SRC)/%.s | $(BUILD_DIR)
 
 $(KERNEL_BBX): $(KERNEL_OBJS) $(KERNEL_CFG)
 	# $(LD65) -C $(KERNEL_CFG) -o $@ $(KERNEL_OBJS) none.lib
-	$(LD65) -C $(KERNEL_CFG) -m $(BUILD_DIR)/kernel.map -o $@ $(KERNEL_OBJS) none.lib
+	$(LD65) -C $(KERNEL_CFG) -m $(BUILD_DIR)/kernel.map --dbgfile $(KERNEL_DBG) -o $@ $(KERNEL_OBJS) none.lib
 
 $(BUILD_DIR)/boot.o: $(BOOT_DIR)/boot.s | $(BUILD_DIR)
 	$(CA65) $(CA65_FLAGS) -o $@ $<
 $(BOOT_BIN): $(BOOT_OBJS) $(BOOT_CFG)
-	$(LD65) -C $(BOOT_CFG) -m $(BUILD_DIR)/boot.map -o $@ $(BOOT_OBJS)
+	$(LD65) -C $(BOOT_CFG) -m $(BUILD_DIR)/boot.map --dbgfile $(BOOT_DBG) -o $@ $(BOOT_OBJS)
 $(BOOT_HEX): $(BOOT_BIN)
 	hexdump -v -e '1/1 "%02x\n"' $< > $@
 
