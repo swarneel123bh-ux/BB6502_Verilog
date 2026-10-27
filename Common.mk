@@ -12,10 +12,27 @@ CA65       := ca65
 LD65       := ld65
 CC         := cc
 
+# Syscall ABI block in every process's zero page (see docs/syscalls.md).
+# This is the ONLY place its position and size are written down:
+#   - syslib.s (user side) and syscalls.c (kernel side) define each slot as
+#     SYS_ABI_BASE + offset,
+#   - prog.cfg places cc65's own zero-page variables right after the block,
+#   - ld65 / ca65 refuse to build if the result doesn't fit in zero page.
+# Decimal on purpose: ca65/ld65 write hex as $30 but C needs 0x30.
+# Changing either value means a `make clean`.
+SYS_ABI_BASE := 48
+SYS_ABI_SIZE := 17
+
+ABI_DEFS_C   := -DSYS_ABI_BASE=$(SYS_ABI_BASE) -DSYS_ABI_SIZE=$(SYS_ABI_SIZE)
+ABI_DEFS_AS  := -D SYS_ABI_BASE=$(SYS_ABI_BASE) -D SYS_ABI_SIZE=$(SYS_ABI_SIZE)
+ABI_DEFS_LD  := -D __SYS_ABI_BASE__=$(SYS_ABI_BASE) -D __SYS_ABI_SIZE__=$(SYS_ABI_SIZE)
+
 # -g only adds debug info to the object files (used to produce the ld65
 # --dbgfile symbol files the debugger loads); the binaries are unchanged.
-CC65_FLAGS := -Oir --cpu 65c02 -g
-CA65_FLAGS := --cpu 65c02 -g
+CC65_FLAGS := -Oir --cpu 65c02 -g $(ABI_DEFS_C)
+CA65_FLAGS := --cpu 65c02 -g $(ABI_DEFS_AS)
+# Used when linking user programs (prog.cfg reads the ABI symbols)
+LD65_PROG_FLAGS := $(ABI_DEFS_LD)
 
 DISK_SIZE_KB := 1440
 BOOT_REC_LBA := 100

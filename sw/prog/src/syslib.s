@@ -2,10 +2,10 @@
 ; syslib.s — user-side syscall stubs (sys_putc, sys_puts, sys_yield, ...)
 ;
 ; Syscall ABI (see docs/syscalls.md):
-;   arguments in the program's own zero page ($33-$40),
+;   arguments in the program's own zero page (the ABI block, see below),
 ;   then PHA/PHX/PHY, BRK, .byte <syscall number>.
 ;   The kernel returns to the instruction after the number byte; the
-;   stub restores Y/X/A and reads the result from $33 / $40.
+;   stub restores Y/X/A and reads the result from SYS_RET / SYS_A_REG.
 ; ==========================================================================
 .export _sys_yield
 .export _sys_exit
@@ -15,17 +15,23 @@
 .export _sys_block_read
 .export _sys_block_write
 
-; These are STILL in program zp (user mode, not in real hardware zp)
-SYS_NUM_PTR   = $30
-SYS_NUM				= $32
-SYS_RET       = $33
-SYS_ARG0_LO   = $34
-SYS_ARG0_HI   = $35
-SYS_ARG1_LO   = $36
-SYS_ARG1_HI   = $37
-SYS_ARG2_LO   = $38
-SYS_ARG2_HI   = $39
-SYS_A_REG     = $40   ; for syscalls returning a byte
+; These are STILL in program zp (user mode, not in real hardware zp).
+; SYS_ABI_BASE / SYS_ABI_SIZE come from common.mk (ca65 -D); the offsets
+; must match the OFF_* defines in sw/kernel/src/syscalls.c.
+SYS_NUM_PTR   = SYS_ABI_BASE + $00   ; (unused on the user side)
+SYS_NUM				= SYS_ABI_BASE + $02   ; (unused on the user side)
+SYS_RET       = SYS_ABI_BASE + $03
+SYS_ARG0_LO   = SYS_ABI_BASE + $04
+SYS_ARG0_HI   = SYS_ABI_BASE + $05
+SYS_ARG1_LO   = SYS_ABI_BASE + $06
+SYS_ARG1_HI   = SYS_ABI_BASE + $07
+SYS_ARG2_LO   = SYS_ABI_BASE + $08
+SYS_ARG2_HI   = SYS_ABI_BASE + $09
+SYS_A_REG     = SYS_ABI_BASE + $10   ; for syscalls returning a byte
+
+; Build-time checks: every slot inside the block, block inside zero page
+.assert SYS_A_REG < SYS_ABI_BASE + SYS_ABI_SIZE, error, "syslib.s: ABI slot outside SYS_ABI_SIZE, grow it in common.mk"
+.assert SYS_ABI_BASE + SYS_ABI_SIZE <= $100, error, "syslib.s: syscall ABI block does not fit in zero page"
 
 .segment "CODE"
 

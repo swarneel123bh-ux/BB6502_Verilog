@@ -22,9 +22,9 @@ $(BUILD_DIR)/prog_syslib.o: $(PROG_SRC)/syslib.s | $(BUILD_DIR)
 $(BUILD_DIR)/prog_crt0.o: $(PROG_CRT0) | $(BUILD_DIR)
 	$(CA65) $(CA65_FLAGS) -o $@ $<
 $(PROG_BBX): $(HELLO_OBJS) $(PROG_CFG)
-	$(LD65) -C $(PROG_CFG) --dbgfile $(PROG_DBG) -o $@ $(HELLO_OBJS) none.lib
+	$(LD65) -C $(PROG_CFG) $(LD65_PROG_FLAGS) --dbgfile $(PROG_DBG) -o $@ $(HELLO_OBJS) none.lib
 $(PROG2_BBX): $(HELLO2_OBJS) $(PROG_CFG)
-	$(LD65) -C $(PROG_CFG) --dbgfile $(PROG2_DBG) -o $@ $(HELLO2_OBJS) none.lib
+	$(LD65) -C $(PROG_CFG) $(LD65_PROG_FLAGS) --dbgfile $(PROG2_DBG) -o $@ $(HELLO2_OBJS) none.lib
 $(BUILD_DIR):
 	mkdir -p $@
 clean:

@@ -45,7 +45,7 @@ A process spawned with `base` gets `ppn[i] = base + i` for all 8 virtual pages. 
 
 | Range | What |
 |---|---|
-| `$0000-$00FF` | Its own zero page: cc65 variables at `$30-$4F`, syscall ABI slots `$30-$40` (these overlap, see [syscalls.md](syscalls.md)) |
+| `$0000-$00FF` | Its own zero page: syscall ABI block at `$30-$40`, then cc65's variables from `$41` (both positions derived from `common.mk`, see [syscalls.md](syscalls.md#syscall-abi)) |
 | `$0100-$01FF` | Its own hardware stack (starts at `SP=$FC` with an RTI frame built by `spawn_bbx`) |
 | `$1000-$1005` | BBX header |
 | `$1006-` | Code, read-only data, data, BSS |

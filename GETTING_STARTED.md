@@ -208,10 +208,10 @@ COUNT_OBJS  := $(PROG_COMMON) $(BUILD_DIR)/prog_count.o
 all: $(PROG_BBX) $(PROG2_BBX) $(PROG3_BBX)
 
 $(PROG3_BBX): $(COUNT_OBJS) $(PROG_CFG)
-	$(LD65) -C $(PROG_CFG) -o $@ $(COUNT_OBJS) none.lib
+	$(LD65) -C $(PROG_CFG) $(LD65_PROG_FLAGS) -o $@ $(COUNT_OBJS) none.lib
 ```
 
-The recipe line must start with a **tab**, not spaces.
+The recipe line must start with a **tab**, not spaces. Keep `$(LD65_PROG_FLAGS)`: it tells `prog.cfg` where the syscall area is (see [docs/syscalls.md](docs/syscalls.md#syscall-abi)).
 
 **4. Put it on the disk.** In the root `Makefile`, in the `$(DISK_IMG)` rule, add after the hello2 line:
 

@@ -24,15 +24,19 @@
 // Number lives in kernel ZP (brk.s wrote it there). Plain value, no xlate.
 #define SYS_NUM       (*(volatile uint8_t*)0x32)
 
-// ABI slot offsets within the USER's zero page.
-#define OFF_RET       0x33
-#define OFF_ARG0_LO   0x34
-#define OFF_ARG0_HI   0x35
-#define OFF_ARG1_LO   0x36
-#define OFF_ARG1_HI   0x37
-#define OFF_ARG2_LO   0x38
-#define OFF_ARG2_HI   0x39
-#define OFF_A_REG     0x40   // byte in/out slot
+// ABI slot addresses within the USER's zero page. SYS_ABI_BASE comes from
+// common.mk (cc65 -D); the offsets must match sw/prog/src/syslib.s.
+#ifndef SYS_ABI_BASE
+#error "SYS_ABI_BASE not defined: build through the Makefile (common.mk)"
+#endif
+#define OFF_RET       (SYS_ABI_BASE + 0x03)
+#define OFF_ARG0_LO   (SYS_ABI_BASE + 0x04)
+#define OFF_ARG0_HI   (SYS_ABI_BASE + 0x05)
+#define OFF_ARG1_LO   (SYS_ABI_BASE + 0x06)
+#define OFF_ARG1_HI   (SYS_ABI_BASE + 0x07)
+#define OFF_ARG2_LO   (SYS_ABI_BASE + 0x08)
+#define OFF_ARG2_HI   (SYS_ABI_BASE + 0x09)
+#define OFF_A_REG     (SYS_ABI_BASE + 0x10)   // byte in/out slot
 
 #define ENOSYS  0xFF
 

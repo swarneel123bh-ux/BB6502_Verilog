@@ -35,6 +35,12 @@ tools/gpu.c ─cc (SDL2, SDL2_ttf)─► gpu
 - `ca65 --cpu 65c02 -g`
 - `-g` and `ld65 --dbgfile` only produce the `build/*.dbg` symbol files the debugger loads. **The binaries are byte-identical with or without them.**
 - Linking uses `none.lib` (cc65's runtime with no target system).
+- `SYS_ABI_BASE` / `SYS_ABI_SIZE` (`common.mk`) define the syscall ABI block in every process's zero page. The same two numbers reach every tool:
+  - cc65: `-DSYS_ABI_BASE=…`, for the kernel's `syscalls.c`
+  - ca65: `-D SYS_ABI_BASE=…`, for `syslib.s`
+  - ld65: `-D __SYS_ABI_BASE__=…` (`LD65_PROG_FLAGS`), for `prog.cfg`
+
+  Override them for one build with `make SYS_ABI_BASE=128`, or change them in `common.mk`; then `make clean`. Builds stop with an error if the block, or cc65's zero page after it, no longer fits below `$100`.
 
 ## Linker configs
 
@@ -42,7 +48,7 @@ tools/gpu.c ─cc (SDL2, SDL2_ttf)─► gpu
 |---|---|
 | `sw/boot/boot.cfg` | ROM from `$8100` (NOP-filled) and vectors at `$FFF8-$FFFF` |
 | `sw/kernel/kernel.cfg` | Zero page `$00-$1F`, BBX header at `$0200`, everything else at `$0206-$0FFF`. **The kernel must fit in its 4 KB page**; the area is filled, so `kernel.bbx` is always 3584 bytes. |
-| `sw/prog/prog.cfg` | Zero page `$30-$4F`, header at `$1000`, program from `$1006` |
+| `sw/prog/prog.cfg` | Syscall ABI block (position and size from `common.mk`), cc65 zero page right after it up to `$FF`, header at `$1000`, program from `$1006` |
 
 ## Disk LBAs
 

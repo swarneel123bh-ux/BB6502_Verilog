@@ -19,15 +19,36 @@ _sys_puts:
     rts
 ```
 
-User zero-page slots:
+### The ABI block
 
-| Address | Name | Use |
+The slots live in a block in the program's zero page. Its position and size are set **once**, in `common.mk`: `SYS_ABI_BASE` (default 48 = `$30`) and `SYS_ABI_SIZE` (default 17, so `$30-$40`). Every tool gets those numbers from the Makefile:
+
+| Who | Gets it as | Uses it for |
 |---|---|---|
-| `$33` | `SYS_RET` | Return code |
-| `$34/$35` | `ARG0` | First argument (lo/hi) |
-| `$36/$37` | `ARG1` | Second argument |
-| `$38/$39` | `ARG2` | Third argument |
-| `$40` | `SYS_A_REG` | Byte argument in / byte result out |
+| `syslib.s` (user stubs) | `ca65 -D SYS_ABI_BASE=…` | `SYS_RET = SYS_ABI_BASE + 3`, … |
+| `syscalls.c` (kernel) | `cc65 -DSYS_ABI_BASE=…` | `OFF_RET (SYS_ABI_BASE + 3)`, … |
+| `prog.cfg` (linker) | `ld65 -D __SYS_ABI_BASE__=…` | Puts cc65's own zero-page variables right **after** the block, so they can never overlap it |
+
+Slots, as offsets from `SYS_ABI_BASE`:
+
+| Offset | Default address | Name | Use |
+|---|---|---|---|
+| +3 | `$33` | `SYS_RET` | Return code |
+| +4/+5 | `$34/$35` | `ARG0` | First argument (lo/hi) |
+| +6/+7 | `$36/$37` | `ARG1` | Second argument |
+| +8/+9 | `$38/$39` | `ARG2` | Third argument |
+| +$10 | `$40` | `SYS_A_REG` | Byte argument in / byte result out |
+
+Offsets +0..+2 and +$0A..+$0F are currently unused on the user side.
+
+**Adding a slot:**
+1. Add it in `syslib.s` and with the same offset in `syscalls.c`.
+2. If the block got longer, raise `SYS_ABI_SIZE`.
+3. Run `make clean`.
+
+The build checks itself:
+- `syslib.s` asserts that `SYS_A_REG` lies inside the block and that the block fits in zero page.
+- ld65 reports "overflows memory area 'ZP'" if cc65's variables no longer fit between the block and `$FF`.
 
 Kernel side:
 1. `BRK` vectors through `$FFFE` → `brk_trampoline` → `brk_handler` (`sw/kernel/src/brk.s`), already in kernel mode.
@@ -52,7 +73,6 @@ Kernel side:
 | 9–11 | `OPEN_FAT`, `READ_FAT`, `PROCESS_CREATE` | — | Reserved: `ENOSYS` |
 
 Known problems:
-- **The zero page is shared.** `prog.cfg` gives cc65's own zero-page variables `$30-$4F` (`sp`, `sreg`, `regsave`, `ptr1`, …). Those overlap the ABI slots above, so syscall arguments overwrite C runtime state.
 - **Block-I/O arguments are read from the wrong stack.** `sys_block_read`/`sys_block_write` read their arguments from the hardware stack (`$0102,x`). cc65 actually passes them on its software stack, with the last argument in A/X, so these two calls currently get wrong arguments. Neither demo uses them.
 - **Block buffers can't cross pages.** A block buffer must not cross a 4 KB virtual page, because only the start address is translated.
 
