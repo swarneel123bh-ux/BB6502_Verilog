@@ -15,8 +15,8 @@
 ; brk_handler is the same as our generic interrupt handler but can distinguish
 ; hardware interrupts fro software interrupts
 ;
-; brk_handler: brk is an interrupt(irq) => cpu jumps to $FFFE => $FFFE has a jump instr
-; to addres at ($00FE) [instr JMP ($00FE)]
+; brk_handler: brk is an interrupt(irq) => cpu fetches the vector at $FFFE, which
+; points at brk_trampoline in the boot ROM => JMP ($00FE) => here
 ;
 ; Stack on entry (top down):
 ; 																														<- sp
@@ -51,7 +51,8 @@
 ; ================
 _brk_handler:
 
-				tsx									; Note, stack pointer doesnt matter because we are in kernel stack now
+				tsx									; X = SP: BRK's frame is at user $0100+SP+1..3. We are in kernel
+										; mode now (no translation), so reach it through the user's page
 
 				lda MMU_PPN0				; Load the page number to get stack access
 				asl
@@ -63,16 +64,16 @@ _brk_handler:
 				lda (ZP_MEM_PTR),y	; saved status register (MMU_PPN0 << 10 | $01(sp))
 				and #$10						; Get the B flag of the status register (if set then brk)
 				bne @brk_path
-				jmp irq_path				; Interrupt was a software one, treat as irq
+				jmp irq_path				; B clear: a hardware IRQ, not BRK
 
 @brk_path:
 				; ---- BRK PATH ----
-				; Saved PCH/PCL is at ($0100 + sp + (3 / 2))
+				; Saved PCL is at $0100+sp+2, PCH at $0100+sp+3 (BRK pushed PC+2)
 				; Restore
 				iny
 				lda (ZP_MEM_PTR),y						; Load PCL (Still in process stack)
 				sec														; Set carry
-				sbc #1												; Subtract with carry to get previous byte
+				sbc #1												; PC+2 - 1 = address of the syscall-number byte
 				sta ZP_SYS_NUM_PTR		; Store the syscall_number_pointer's low byte
 
 				iny
@@ -99,7 +100,7 @@ _brk_handler:
 
 				; Now we have realptr to syscall number, derefernce it
 				ldy #0
-				lda (ZP_SYS_NUM_PTR),y 	; Read syscall signature from ZP_SYS_NUM
+				lda (ZP_SYS_NUM_PTR),y 	; Read the syscall number through ZP_SYS_NUM_PTR
 				sta ZP_SYS_NUM					; now ZP_SYS_NUM has signature syscall number
 
 				; Check if this was a yield syscall (SYS_YIELD (0))
@@ -108,8 +109,8 @@ _brk_handler:
 				jmp do_yield					; BRANCH WITHOUT RTS using JMP because DO_YIELD IS FAR AWAY
 @not_do_yield:
 				jsr _syscall_dispatch	; Handle syscall
-				jmp (RET_USER_MODE)						; return code here
+				jmp (RET_USER_MODE)						; back to the process (ret_user_mode, $FFF8)
 
 				; ---- IRQ PATH -----
 irq_path:
-				jmp (RET_USER_MODE)						; ret_user_mode code here
+				jmp (RET_USER_MODE)						; nothing raises IRQ yet: just return to the process

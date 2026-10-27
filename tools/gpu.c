@@ -77,7 +77,7 @@ static void render(SDL_Renderer* r, TTF_Font* f) {
   SDL_RenderPresent(r);
 }
 
-// Write a single byte to the input FIFO. Drop on failure (e.g., no reader yet).
+// Write a single byte to the input file. Drop on failure.
 static void send_byte(int fd, unsigned char c) {
   if (fd < 0) return;
   ssize_t r = write(fd, &c, 1);
@@ -109,9 +109,8 @@ int main(int argc, char** argv) {
   int gpu_fd = open("/tmp/bb6502_gpu", O_RDWR | O_NONBLOCK);
   if (gpu_fd < 0) { perror("open /tmp/bb6502_gpu"); return 1; }
 
-  // Input FIFO: keystrokes -> simulated ACIA RX
-  // O_RDWR | O_NONBLOCK opens without blocking even if no reader is attached yet.
-  // Use a regular file, truncated at startup. The simulation polls it by
+  // Input file: keystrokes -> simulated ACIA RX. Must NOT be a FIFO (an empty
+  // FIFO would block the simulation's poll). Use a regular file, truncated at startup. The simulation polls it by
   // fseek+fgetc each time, which doesn't block when at EOF.
   int in_fd = open("/tmp/bb6502_in", O_WRONLY | O_CREAT | O_TRUNC | O_APPEND, 0644);
   if (in_fd < 0) { perror("open /tmp/bb6502_in"); return 1; }

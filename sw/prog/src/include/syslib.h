@@ -7,7 +7,7 @@
 
 #include <stdint.h>
 
-// User ZP vars
+// Syscall numbers (the byte after BRK)
 #define SYS_YIELD				 0
 #define SYS_EXIT         1
 #define SYS_PUTC         2

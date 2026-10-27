@@ -1,4 +1,4 @@
-# Destination: rtl/rtl.mk  (emulator: sim.vvp + gpu)
+# Destination: rtl/rtl.mk  (emulator: sim.vvp + gpu; debugger: sim_dbg.vvp + bbdbg.vpi)
 ROOT := ..
 include $(ROOT)/common.mk
 

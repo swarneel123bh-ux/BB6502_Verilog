@@ -44,7 +44,7 @@ module tb;
   wire [7:0]  DO;
   reg  [7:0]  DI;
   reg         IRQ = 0;
-  reg         NMI = 1;          // active low — high when no interrupt
+  reg         NMI = 1;          // Arlet's NMI is active high, rising-edge triggered
   reg         RDY = 1;
   wire        sync;
   wire        VPB;
@@ -90,9 +90,9 @@ module tb;
     .faultb    (faultb)
   );
 
-  // Connect fault -> NMI (active low; NMI=0 means "interrupt pending")
+  // Connect fault -> NMI (faultb is active low; Arlet's NMI is active high)
   always @(posedge clk)
-    NMI <= ~faultb;	// NOTE: artlet's nmi is POSEDGE Triggered so we need to bar the bar again
+    NMI <= ~faultb;	// NOTE: Arlet's nmi is POSEDGE triggered, so invert the active-low faultb
 
   // ---- Memory ----
   reg [7:0] ram [0:32767];        // physical, 32KB
@@ -111,7 +111,7 @@ module tb;
   reg        disk_err  = 0;
   integer    disk_fd;
 
-  // Reset data pointer & buffer index helpers
+  // Disk controller: sector read/write tasks, run on a CMD write ($80E4)
   task automatic disk_do_read;
     integer i, n;
     begin
@@ -184,13 +184,13 @@ module tb;
     	if (!acia_tx_ready) begin
      		$display("[acia] TX overrun: byte %02x at t=%0t", DO, $time);
      	end
-    	acia_tx_count <= ACIA_TX_CYCLES - 1;	// Set counter to corrent count
+    	acia_tx_count <= ACIA_TX_CYCLES - 1;	// Set counter to correct count
      	acia_tx_ready <= 0;								// Reset ready flag
     end else if (!acia_tx_ready) begin
       if (acia_tx_count == 0) begin			// If count finished, set ready flag
       	acia_tx_ready <= 1;
        	acia_tx_count <= 0;
-      end else begin										// If not finished, recude count by 1
+      end else begin										// If not finished, reduce count by 1
       	acia_tx_count <= acia_tx_count - 1;
       end
     end

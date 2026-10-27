@@ -13,7 +13,8 @@
 #include "include/devices.h"
 
 // _brk_handler
-// Kernel must install this at $FFFE after boot
+// Kernel must install its address at $00FE/$00FF after boot: the IRQ/BRK
+// vector ($FFFE, in ROM) points at brk_trampoline, which does JMP ($00FE).
 extern void brk_handler(void);	// <- in brk.s
 
 int main(void) {
@@ -23,7 +24,8 @@ int main(void) {
 	*(uint8_t*)0xFE = (uint8_t)((uint16_t)brk_handler);				// LOW BYTE
 	*(uint8_t*)0xFF = (uint8_t)((uint16_t)brk_handler >> 8);	// HIGH BYTE
 
-  // Identity map pages for kernel
+  // Start from an identity page table (kernel mode doesn't translate at all;
+  // this only gives the MMU sane contents until a process is loaded)
   for (i = 0; i < MMU_NPAGES; ++i) {
   	*(MMU_PPN0+i) = i;
   }

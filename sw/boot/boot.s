@@ -34,6 +34,9 @@ ZP_COUNT 			= $02			; 2 bytes
 ZP_LBA 				= $04			; 4 bytes
 
 ; Persistent ZP (basically using the same addr everywhere)
+; Not used by the boot ROM itself; kept to document the kernel's slots
+; (the kernel's own definitions are in sw/kernel/src/include/zp.s, and
+; ZP_CURR_PROC_MMU_PPN0 is not used anywhere).
 ZP_CURR_PROC_PTR      = $51
 ZP_CURR_PROC_MMU_PPN0 = $53
 
@@ -49,9 +52,10 @@ STAGE_ADDR		= $0200		; KERNEL MUST BE LOADED AT THIS ADDRESS
 .segment "CODE"
 ret_user_mode:
 				stz MMU_CTRL	; Reset to user mode (this runs without translation because in kernel mode)
-				rti						; rti from user stack (this runs without traslation because in ROM)
+				rti						; fetched from ROM (never translated), but the MMU is in user mode
+										; now, so its stack pulls go through ppn[0]: it pops the PROCESS's frame
 nmi_handler:
-irq_handler:
+irq_handler:					; (unused label: IRQ shares the BRK vector, brk_trampoline)
 				rti
 
 reset:
@@ -301,8 +305,8 @@ halt:
 ;  Kernel writes its real handler address here at boot.
 ;  Also used for IRQ (same vector on 6502).
 ;
-; NOTE: The extra code is to maintain kernel's page 0
-; while also saving running process's page 0
+; NOTE: The vector fetch has already switched the MMU to kernel mode
+; (VPB), so ($00FE) reads the KERNEL's zero page, not the process's.
 ; ============================================================
 brk_trampoline:
 				jmp ($00FE)

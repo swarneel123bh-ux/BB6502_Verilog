@@ -19,7 +19,8 @@
 entry:
         ldx #$ff
         txs                         ; init hw stack
-        ; init cc65 software stack at top of program area
+        ; init cc65 software stack at $7EFF, the top of the 32 KB virtual
+        ; address space (virtual page 31)
         lda #$ff
         sta sp
         lda #$7e

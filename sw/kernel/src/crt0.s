@@ -14,7 +14,7 @@
 .segment "HDR"
         .byte $42, $58            ; 'B','X'
         .word $0200               ; load address
-        .word kentry              ; entry point ($0206 presumably)
+        .word kentry              ; entry point (kentry, $0206: first byte after HDR)
 
 .segment "STARTUP"
 kentry:
@@ -22,7 +22,7 @@ kentry:
         ldx #$ff
         txs
         cld
-        ; Init cc65 software stack to top of usable RAM
+        ; Init cc65 software stack at $7EFF, the top of the kernel's high page
         lda #$ff
         sta sp
         lda #$7e

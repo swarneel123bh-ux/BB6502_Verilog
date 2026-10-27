@@ -24,8 +24,8 @@
 //   $28      mode     bit 0: 1 = kernel, 0 = user
 //   $29-$3F  reserved (read as 0)
 //
-// faultb is registered (one cycle late) and active low; tb.v connects it to
-// the CPU's NMI input.
+// faultb is registered (one cycle late) and active low; tb.v inverts it onto
+// the CPU's NMI input (Arlet's NMI is active high, rising-edge triggered).
 // ============================================================================
 `timescale 1ns / 1ps
 
@@ -84,8 +84,8 @@ module mmu6502 #(
   // ==========================
   // TRANSLATION (COMBINATIONAL)
   // ==========================
-  // wire [PPN_WIDTH-1:0] eff_ppn = (kernel == 1) ? addr[14:12] : ppn[vpn];
-  // assign ram_addr = {eff_ppn, addr[11:0]};
+  // wire [PPN_WIDTH-1:0] eff_ppn = (kernel == 1) ? addr[14:10] : ppn[vpn];
+  // assign ram_addr = {eff_ppn, addr[9:0]};
 
   assign ram_addr = {((kernel) ? addr[14:10] : ppn[vpn]), addr[9:0]};
 
@@ -170,7 +170,7 @@ module mmu6502 #(
   assign fault_w = ram_access & ~kernel & ~rwb & ~w_bits[vpn];  // Fault on illegal write to a page
   assign fault_ctrl = is_ctrl & ~kernel & ~rwb;  // Fault on illegal write to ctlr reg
 
-  reg fault_reg;  // Registered fault for making sure there are no false NMI lows
+  reg fault_reg;  // Registered fault for making sure there are no false NMI pulses
   always @(negedge phi2 or negedge resetb) begin
     if (!resetb) begin
       fault_reg <= 1'b0;
@@ -179,6 +179,6 @@ module mmu6502 #(
       fault_reg <= fault_u | fault_w | fault_ctrl;
     end
   end
-  assign faultb = ~fault_reg;	// fault needs to be active low since we connect it to NMIB
+  assign faultb = ~fault_reg;	// active low, like a real /FAULT pin (tb.v inverts it for NMI)
 
 endmodule

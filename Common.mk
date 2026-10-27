@@ -42,8 +42,9 @@ PROG2_LBA := 210
 PROG3_LBA := 220
 
 SIM_VVP      := $(BUILD_DIR)/sim.vvp
-SIM_DBG_VVP  := $(BUILD_DIR)/sim_dbg.vvp   # same RTL built with -DBBDBG
-DBG_VPI      := $(BUILD_DIR)/bbdbg.vpi     # debugger VPI module
+# Debugger build: the same RTL built with -DBBDBG, and the debugger VPI module
+SIM_DBG_VVP  := $(BUILD_DIR)/sim_dbg.vvp
+DBG_VPI      := $(BUILD_DIR)/bbdbg.vpi
 GPU_BIN      := $(BUILD_DIR)/gpu
 KERNEL_BBX   := $(BUILD_DIR)/kernel.bbx
 BOOT_BIN     := $(BUILD_DIR)/bootrom.bin

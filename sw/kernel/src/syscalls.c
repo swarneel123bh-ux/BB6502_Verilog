@@ -12,9 +12,10 @@
 //                        (extracted from the inline byte after BRK). Read it
 //                        straight from kernel ZP, no translation.
 //   * Syscall ARGS    -> written by the user into the USER's zero page while
-//                        still in user mode. The user's $34.. live in the
-//                        user's PHYSICAL page 0 = (MMU_PPN0 << 10) | offset.
-//                        They are NOT visible at the kernel's own $34.
+//                        still in user mode. The user's ABI slots ($33.. by
+//                        default, SYS_ABI_BASE) live in the physical page
+//                        behind the user's virtual page 0 = (MMU_PPN0 << 10)
+//                        | offset. They are NOT visible at the kernel's own $33..
 //
 // Pointer payloads (e.g. the puts string) are USER VIRTUAL addresses. They are
 // translated by the POINTER'S OWN page, i.e. MMU_PPN[(va>>10)&31],
