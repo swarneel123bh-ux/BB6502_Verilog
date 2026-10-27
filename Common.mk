@@ -39,6 +39,7 @@ BOOT_REC_LBA := 100
 KERNEL_LBA   := 101
 PROG_LBA  := 200
 PROG2_LBA := 210
+PROG3_LBA := 220
 
 SIM_VVP      := $(BUILD_DIR)/sim.vvp
 SIM_DBG_VVP  := $(BUILD_DIR)/sim_dbg.vvp   # same RTL built with -DBBDBG
@@ -50,6 +51,7 @@ BOOT_HEX     := $(BUILD_DIR)/bootrom.hex
 BOOT_REC_BIN := $(BUILD_DIR)/bootrec.bin
 PROG_BBX  := $(BUILD_DIR)/hello.bbx
 PROG2_BBX := $(BUILD_DIR)/hello2.bbx
+PROG3_BBX := $(BUILD_DIR)/disktest.bbx
 DISK_IMG     := $(BUILD_DIR)/disk.img
 
 # ld65 debug-info files (symbol tables for the debugger)
@@ -57,3 +59,4 @@ BOOT_DBG     := $(BUILD_DIR)/boot.dbg
 KERNEL_DBG   := $(BUILD_DIR)/kernel.dbg
 PROG_DBG     := $(BUILD_DIR)/hello.dbg
 PROG2_DBG    := $(BUILD_DIR)/hello2.dbg
+PROG3_DBG    := $(BUILD_DIR)/disktest.dbg

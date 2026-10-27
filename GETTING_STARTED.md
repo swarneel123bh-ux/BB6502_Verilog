@@ -173,7 +173,9 @@ Programs are C files compiled with cc65. They run as processes and talk to the k
 | `sys_block_read(lba, buf)` / `sys_block_write(lba, buf)` | Reads or writes one 512-byte disk sector |
 | `sys_exit(code)` | Currently halts the machine |
 
-The kernel doesn't yet load programs by name, so adding one means editing a few files. Example: a third process called `count`.
+The kernel doesn't yet load programs by name, so adding one means editing a few files. The project already does this once for `disktest` (`sw/prog/src/disktest.c`, the `PROG3_*` lines); use it as a working reference.
+
+Example: a process called `count` that takes **`disktest`'s place**. Each process needs two physical pages, and they're all taken right now (kernel 0, hello 1–2, hello2 3–4, disktest 5–6, plus the kernel's C stack in page 7), so a new program has to replace one until process memory is allocated properly.
 
 **1. Write the program**: `sw/prog/src/count.c`
 
@@ -193,11 +195,11 @@ int main(void) {
 }
 ```
 
-**2. Give it a file name and a disk location** in `common.mk`, next to `PROG2_*`:
+**2. Give it a file name and a disk location** in `common.mk`, next to `PROG3_*`:
 
 ```make
-PROG3_LBA := 220
-PROG3_BBX := $(BUILD_DIR)/count.bbx
+PROG4_LBA := 230
+PROG4_BBX := $(BUILD_DIR)/count.bbx
 ```
 
 **3. Teach `sw/prog/prog.mk` to build it.** Add the object list, add it to `all`, and add a link rule:
@@ -205,27 +207,27 @@ PROG3_BBX := $(BUILD_DIR)/count.bbx
 ```make
 COUNT_OBJS  := $(PROG_COMMON) $(BUILD_DIR)/prog_count.o
 
-all: $(PROG_BBX) $(PROG2_BBX) $(PROG3_BBX)
+all: $(PROG_BBX) $(PROG2_BBX) $(PROG3_BBX) $(PROG4_BBX)
 
-$(PROG3_BBX): $(COUNT_OBJS) $(PROG_CFG)
+$(PROG4_BBX): $(COUNT_OBJS) $(PROG_CFG)
 	$(LD65) -C $(PROG_CFG) $(LD65_PROG_FLAGS) -o $@ $(COUNT_OBJS) none.lib
 ```
 
 The recipe line must start with a **tab**, not spaces. Keep `$(LD65_PROG_FLAGS)`: it tells `prog.cfg` where the syscall area is (see [docs/syscalls.md](docs/syscalls.md#syscall-abi)).
 
-**4. Put it on the disk.** In the root `Makefile`, in the `$(DISK_IMG)` rule, add after the hello2 line:
+**4. Put it on the disk.** In the root `Makefile`, in the `$(DISK_IMG)` rule, add after the disktest line:
 
 ```make
-	@dd if=$(PROG3_BBX) of=$@ bs=512 seek=$(PROG3_LBA) conv=notrunc status=none
+	@dd if=$(PROG4_BBX) of=$@ bs=512 seek=$(PROG4_LBA) conv=notrunc status=none
 ```
 
-**5. Start it.** In `sw/kernel/src/main.c`, after the second `spawn_bbx`:
+**5. Start it.** In `sw/kernel/src/main.c`, replace the `disktest` line `spawn_bbx(220, 1, 5);` with:
 
 ```c
-  spawn_bbx(220, 1, 5);    // count.c at lba 220, physical pages from 5
+  spawn_bbx(230, 1, 5);    // count.c at lba 230, physical pages from 5
 ```
 
-The arguments are: disk sector, number of sectors to load (1 is enough while `build/count.bbx` is at most 512 bytes; the demos are about 240), and the first physical page. Use 5 so it doesn't share pages with the demos, which use 1–2 and 3–4. At most 4 processes are supported.
+The arguments are: disk sector, number of sectors to load (1 is enough while `build/count.bbx` is at most 512 bytes; the demos are about 240), and the first physical page. 5 is the base `disktest` used; the demos use 1–2 and 3–4. At most 4 processes are supported.
 
 **6. Rebuild and run:**
 
@@ -233,7 +235,7 @@ The arguments are: disk sector, number of sectors to load (1 is enough while `bu
 make && make run
 ```
 
-You should now see three interleaved processes.
+You should now see `count` interleaved with `hello` and `hello2`, in place of the `disktest` line.
 
 ---
 

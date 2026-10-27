@@ -44,6 +44,8 @@ int main(void) {
   spawn_bbx(200, 1, 1);    // hello.c at lba 200
   k_print("Loading hello2.c\r\n");
   spawn_bbx(210, 1, 3);    // hello2.c at lba 210
+  k_print("Loading disktest.c\r\n");
+  spawn_bbx(220, 1, 5);    // disktest.c at lba 220 (sys_block_read test)
   k_print("Staring scheduler...\r\n");
   sched_start();           // never returns
  	k_print("Program returned, hanging\n");

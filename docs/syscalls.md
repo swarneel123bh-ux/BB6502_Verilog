@@ -72,8 +72,9 @@ Kernel side:
 | 8 | `SYS_GETC_NB` | — | Kernel only, no user stub yet: `$40` = key, `$33` = 0, or `$33` = 1 if no key |
 | 9–11 | `OPEN_FAT`, `READ_FAT`, `PROCESS_CREATE` | — | Reserved: `ENOSYS` |
 
+Passing arguments from C: cc65's default `__fastcall__` convention puts the **last** argument in A/X and pushes the earlier ones onto cc65's software stack. The callee must remove them. So `sys_block_read(lba, buf)` stores A/X as `buf`, then calls `popax` to take `lba` off the stack. `sw/prog/src/disktest.c` tests this end to end: it reads sector 0 and checks for the `55 AA` signature.
+
 Known problems:
-- **Block-I/O arguments are read from the wrong stack.** `sys_block_read`/`sys_block_write` read their arguments from the hardware stack (`$0102,x`). cc65 actually passes them on its software stack, with the last argument in A/X, so these two calls currently get wrong arguments. Neither demo uses them.
 - **Block buffers can't cross pages.** A block buffer must not cross a 4 KB virtual page, because only the start address is translated.
 
 ## BBX executable format

@@ -37,9 +37,16 @@
 | 0 | `$0000-$0FFF` | **Kernel**: zero page (`$00-$1F` cc65, `$30-$55` fixed slots, `$FE/$FF` BRK handler pointer), stack `$0100`, kernel image `$0200-$0FFF` |
 | 1–2 | `$1000-$2FFF` | `hello` (spawned with base 1: virtual page 0 → physical 1, virtual page 1 → physical 2) |
 | 3–4 | `$3000-$4FFF` | `hello2` (base 3) |
-| 5–7 | `$5000-$7FFF` | free; the kernel's cc65 software stack grows down from `$7EFF` |
+| 5–6 | `$5000-$6FFF` | `disktest` (base 5) |
+| 7 | `$7000-$7FFF` | the kernel's cc65 software stack, growing down from `$7EFF` |
 
-A process spawned with `base` gets `ppn[i] = base + i` for all 8 virtual pages. Since physical page numbers are 3 bits, `base + i` wraps around: with base 3, virtual pages 5–7 map to physical 0–2. `sched_start` also sets every user-access and write bit, so **processes are not isolated** from each other or from the kernel yet. They just happen to touch only their first two virtual pages.
+A process spawned with `base` gets `ppn[i] = base + i` for all 8 virtual pages. Since physical page numbers are 3 bits, `base + i` wraps around: with base 3, virtual pages 5–7 map to physical 0–2. `sched_start` also sets every user-access and write bit, so **processes are not isolated** from each other or from the kernel yet.
+
+One collision already happens:
+- Each process's cc65 software stack starts at virtual `$7EFF`, in virtual page 7.
+- That page maps to physical page `base - 1`. For `hello` (base 1) that's physical page 0.
+- So `hello`'s C stack lands at physical `$0EFF`, inside the kernel's `block_buf` (`$0DC9-$0FC8`), just above the process table `plist` (`$0D49-$0DC8`).
+- It's harmless today only because the kernel uses `block_buf` just while spawning, before the scheduler starts.
 
 ## Inside a process (virtual addresses)
 

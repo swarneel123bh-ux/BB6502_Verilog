@@ -7,6 +7,9 @@
 ;   The kernel returns to the instruction after the number byte; the
 ;   stub restores Y/X/A and reads the result from SYS_RET / SYS_A_REG.
 ; ==========================================================================
+
+.import popax
+
 .export _sys_yield
 .export _sys_exit
 .export _sys_putc
@@ -124,22 +127,13 @@ _sys_puts:
 ;   sp+5  buf hi
 ; ------------------------------------------------------------
 _sys_block_read:
-    ; get C stack pointer
-    tsx
 
-    ; lba
-    lda $0102,x
-    sta SYS_ARG0_LO
+		sta SYS_ARG1_LO
+		stx SYS_ARG1_HI
 
-    lda $0103,x
-    sta SYS_ARG0_HI
-
-    ; buf pointer
-    lda $0104,x
-    sta SYS_ARG1_LO
-
-    lda $0105,x
-    sta SYS_ARG1_HI
+		jsr popax
+		sta SYS_ARG0_LO
+		stx SYS_ARG0_HI
 
     pha
     phx
@@ -159,20 +153,12 @@ _sys_block_read:
 ; uint8_t sys_block_write(uint16_t lba, uint8_t* buf)
 ; ------------------------------------------------------------
 _sys_block_write:
-    tsx
-    ; lba
-    lda $0102,x
-    sta SYS_ARG0_LO
+		sta SYS_ARG1_LO
+		stx SYS_ARG1_HI
 
-    lda $0103,x
-    sta SYS_ARG0_HI
-
-    ; buf pointer
-    lda $0104,x
-    sta SYS_ARG1_LO
-
-    lda $0105,x
-    sta SYS_ARG1_HI
+		jsr popax
+		sta SYS_ARG0_LO
+		stx SYS_ARG0_HI
 
     pha
     phx
