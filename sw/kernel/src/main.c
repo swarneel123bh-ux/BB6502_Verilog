@@ -1,3 +1,11 @@
+// ==========================================================================
+// main.c — kernel entry (called from crt0.s)
+//
+// Installs the BRK handler, identity-maps the MMU page table, checks the
+// disk's FAT boot signature, loads the two demo programs as processes
+// (spawn_bbx) and hands the CPU to the scheduler (sched_start), which
+// never returns.
+// ==========================================================================
 #include <stdint.h>
 #include "include/kernel.h"
 #include "include/block.h"

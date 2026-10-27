@@ -1,3 +1,6 @@
+// ==========================================================================
+// hello.c — demo process 1: prints a counter and yields, forever
+// ==========================================================================
 #include "include/syslib.h"
 
 int main(void) {

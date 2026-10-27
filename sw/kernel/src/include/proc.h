@@ -1,3 +1,7 @@
+// ==========================================================================
+// proc.h — process table and scheduler API (proc.c, yield.s)
+// The PROCESS layout is mirrored by offsets in yield.s; change both.
+// ==========================================================================
 #ifndef PROC_H
 #define PROC_H
 

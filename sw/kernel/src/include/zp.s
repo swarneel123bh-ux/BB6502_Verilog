@@ -1,3 +1,6 @@
+; ==========================================================================
+; zp.s — zero-page locations shared by the kernel's assembly files
+; ==========================================================================
 ; Syscall Application Binary Inteface (ABI)
 ZP_SYS_NUM_PTR 				=	$30				; Pointer to (PC+2)-1 so that we can retrieve syscall number from inline
 ZP_SYS_NUM 						=	$32				; Syscall number to trigger

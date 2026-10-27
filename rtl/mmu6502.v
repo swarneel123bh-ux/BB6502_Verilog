@@ -1,3 +1,27 @@
+// ============================================================================
+// mmu6502.v — BB6502 memory management unit
+//
+// Splits the CPU's lower 32 KB ($0000-$7FFF) into 8 virtual pages of 4 KB
+// (VA[14:12] = virtual page number) and maps each to a physical page through
+// a small page table. Instantiated in tb.v with PPN_WIDTH = 3 (8 physical
+// pages = 32 KB of RAM).
+//
+//   Kernel mode  no translation (physical = virtual), all accesses allowed.
+//   User mode    physical page = ppn[vpn]; u_bits / w_bits gate access and
+//                writes per virtual page; violations raise a fault.
+//
+// Mode changes:
+//   - reset, any vector fetch (VPB low: interrupt/BRK/reset) or any fault
+//     -> kernel mode
+//   - writing $80FA (kernel only): bit 0 = 1 kernel, 0 user. The boot ROM's
+//     ret_user_mode ($FFF8: STZ $80FA; RTI) is how the kernel enters a process.
+//
+// Control registers ($80F0-$80FF, writable in kernel mode only):
+//   $80F0-$80F7 ppn[0..7]   $80F8 w_bits   $80F9 u_bits   $80FA mode
+//
+// faultb is registered (one cycle late) and active low; tb.v connects it to
+// the CPU's NMI input.
+// ============================================================================
 `timescale 1ns / 1ps
 
 module mmu6502 #(

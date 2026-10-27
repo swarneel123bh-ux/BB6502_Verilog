@@ -1,3 +1,7 @@
+// ==========================================================================
+// syslib.h — syscall wrappers for user programs (implemented in syslib.s)
+// Numbers must match the enum in sw/kernel/src/syscalls.c.
+// ==========================================================================
 #ifndef SYSLIB_H
 #define SYSLIB_H
 

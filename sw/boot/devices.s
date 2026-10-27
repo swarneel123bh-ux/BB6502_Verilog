@@ -1,3 +1,11 @@
+; ==========================================================================
+; devices.s — I/O register addresses (assembly side)
+;
+; There are three identical copies of this file: sw/boot/devices.s,
+; sw/kernel/devices.s and sw/kernel/src/include/devices.s. Keep them in
+; sync (the C side is sw/kernel/src/include/devices.h). The decode itself
+; lives in rtl/tb.v; see docs/hardware.md for what each register does.
+; ==========================================================================
 ; ---- Required Hardware Addresses ----
 
 ; ACIA (UART) - 6850 Style

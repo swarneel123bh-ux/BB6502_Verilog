@@ -1,3 +1,10 @@
+// ==========================================================================
+// mkbbx.c — BBX header checker (not used by the build)
+//
+// Despite the name and the notes below, this only verifies a file:
+// it prints the load and entry address if the 'BX' magic is present.
+// Usage: mkbbx <file.bbx>
+// ==========================================================================
 // mkbbx: wrap a raw .bin with a BBX header
 //
 // Verifies logical correctness of a BBX file

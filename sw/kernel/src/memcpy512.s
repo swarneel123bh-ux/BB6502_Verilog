@@ -1,3 +1,7 @@
+; ==========================================================================
+; memcpy512.s — fast 512-byte copy for the BBX loader
+; void memcpy512(void* dst, const void* src)  (cc65 calling convention)
+; ==========================================================================
 
 .importzp ptr1, ptr2   ; Use CC65's built-in zero-page pointers
 .import popax         ; CC65 runtime routine to pop Ax from software stack

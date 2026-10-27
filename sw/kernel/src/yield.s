@@ -1,3 +1,12 @@
+; ==========================================================================
+; yield.s — context switch (SYS_YIELD) and scheduler start
+;
+; do_yield saves the running process's SP and MMU page table into its
+; plist entry, calls schedule_process, restores the next process's SP
+; and page table and leaves through ret_user_mode ($FFF8), whose RTI
+; pops the status/PC that BRK pushed on that process's own stack.
+; sched_start does the restore half for plist[0].
+; ==========================================================================
 .import _plist
 .import _plist_idx
 .import _schedule_process

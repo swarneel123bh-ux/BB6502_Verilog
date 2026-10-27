@@ -1,3 +1,10 @@
+; ==========================================================================
+; crt0.s — kernel start-up and BBX header
+;
+; HDR emits the 6-byte BBX header at $0200 ('BX', load address, entry
+; point). The boot ROM jumps to kentry, which resets the hardware stack,
+; points the cc65 software stack (zero page `sp`) at $7EFF and calls main.
+; ==========================================================================
 .setcpu "65C02"
 .include "zeropage.inc"
 

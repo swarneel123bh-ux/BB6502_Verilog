@@ -1,3 +1,14 @@
+// ==========================================================================
+// block.c — 512-byte block device driver (testbench disk controller)
+//
+// Protocol (registers at $80E0-$80E7, see docs/hardware.md):
+//   read:  LBA0..3 = lba, CMD = 1, wait !BUSY, DPTR = 0, then read DATA
+//          512 times (the controller auto-increments its buffer pointer)
+//   write: DPTR = 0, write DATA 512 times, LBA0..3 = lba, CMD = 2,
+//          wait !BUSY
+// STATUS bit 0 = busy, bit 7 = error (set when no disk image is open).
+// Runs in kernel mode, so `buf` is a physical address.
+// ==========================================================================
 #include "include/block.h"
 #include <stdint.h>
 

@@ -1,3 +1,9 @@
+; ==========================================================================
+; prog_crt0.s — user program start-up and BBX header
+;
+; Programs are linked at virtual $1000 (prog.cfg). HDR emits the BBX
+; header; the kernel's spawn_bbx reads the entry point from it.
+; ==========================================================================
 .setcpu "65C02"
 
 .import _main

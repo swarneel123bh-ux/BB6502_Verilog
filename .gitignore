@@ -5,3 +5,5 @@
 .vscode/
 .idea/
 *.swp
+# Personal working notes (not part of the repo)
+HANDOFF.md

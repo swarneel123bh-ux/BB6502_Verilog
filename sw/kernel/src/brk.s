@@ -1,3 +1,6 @@
+; ==========================================================================
+; brk.s — BRK (syscall) / IRQ entry point, installed at $FE/$FF by main
+; ==========================================================================
 ; Kernel BRK handler
 .setcpu "65C02"
 .export _brk_handler

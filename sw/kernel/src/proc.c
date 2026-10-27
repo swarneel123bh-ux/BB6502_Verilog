@@ -1,3 +1,17 @@
+// ==========================================================================
+// proc.c — process table, round-robin scheduler, BBX loader
+//
+// plist[] holds up to 4 PROCESS entries (32 bytes each, layout shared
+// with yield.s). spawn_bbx loads a program from disk into physical pages
+// base..base+7, builds an RTI frame on its stack page and marks it
+// WAITING. schedule_process picks the next WAITING process after
+// plist_idx. The context switch itself is in yield.s.
+//
+// Known limitation: physical page numbers are 3 bits wide, so
+// `base + i` wraps (e.g. base 3 maps virtual page 5 to physical page 0,
+// the kernel's), and sched_start opens every page to user mode. There is
+// no isolation between processes or from the kernel yet.
+// ==========================================================================
 #include <stdint.h>
 #include "include/proc.h"
 #include "include/kernel.h"

@@ -39,17 +39,17 @@
 // Syscall numbers
 enum {
   SYS_YIELD          = 0,  // handled entirely in yield.s; never reaches here
-  SYS_EXIT           = 1,
+  SYS_EXIT           = 1,  // halts the machine for now (SEI + spin)
   SYS_PUTC           = 2,
   SYS_GETC           = 3,
   SYS_PUTS           = 4,
   SYS_BLOCK_READ     = 5,
   SYS_BLOCK_WRITE    = 6,
-  SYS_EXEC           = 7,
+  SYS_EXEC           = 7,  // reserved, not implemented (returns ENOSYS)
   SYS_GETC_NB        = 8,
-  SYS_OPEN_FAT       = 9,
-  SYS_READ_FAT       = 10,
-  SYS_PROCESS_CREATE = 11
+  SYS_OPEN_FAT       = 9,  // reserved, not implemented (returns ENOSYS)
+  SYS_READ_FAT       = 10, // reserved, not implemented (returns ENOSYS)
+  SYS_PROCESS_CREATE = 11  // reserved, not implemented (returns ENOSYS)
 };
 
 // ---- address-space helpers --------------------------------------------------

@@ -1,3 +1,12 @@
+; ==========================================================================
+; syslib.s — user-side syscall stubs (sys_putc, sys_puts, sys_yield, ...)
+;
+; Syscall ABI (see docs/syscalls.md):
+;   arguments in the program's own zero page ($33-$40),
+;   then PHA/PHX/PHY, BRK, .byte <syscall number>.
+;   The kernel returns to the instruction after the number byte; the
+;   stub restores Y/X/A and reads the result from $33 / $40.
+; ==========================================================================
 .export _sys_yield
 .export _sys_exit
 .export _sys_putc

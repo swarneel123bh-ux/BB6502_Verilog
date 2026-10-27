@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# hxdmp.py — hexdump -C style dump of a file (debugging aid, not used
+# by the build). Usage: hxdmp.py <file>
 
 import sys
 from pathlib import Path
