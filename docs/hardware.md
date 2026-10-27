@@ -14,11 +14,11 @@ All of this is in `rtl/tb.v` unless noted otherwise. Addresses are CPU addresses
 | `AB` | Read | Write |
 |---|---|---|
 | `$0000-$7FFF` | `ram[mmu paddr]` | `ram[mmu paddr]` |
-| `$8080-$80BF` | MMU register | MMU register (kernel mode only) |
 | `$8000` | `acia_rx_data` | Byte printed on vvp's stdout (debug build: the debugger's terminal pane) |
 | `$8001` | `{6'b0, acia_tx_ready, acia_rx_valid}` | — |
 | `$8002` | — | Byte written to `/tmp/bb6502_gpu` |
 | `$8003` | `$01` (always ready) | — |
+| `$8080-$80BF` | MMU register | MMU register (kernel mode only) |
 | `$80E0-$80E3` | Disk LBA bytes | Disk LBA bytes |
 | `$80E4` | — | Disk command |
 | `$80E5` | `{err, 6'b0, busy}` | — |
@@ -90,7 +90,7 @@ Rules:
   - writing any MMU register
 - **Reporting faults:** a fault is registered for one cycle and drives `NMI` (through `faultb`). The testbench also prints `[mmu] FAULT AB=… WE=… paddr=…`.
 - **Register access:** control registers can be written only in kernel mode. They can be read in either mode.
-- **Reset state:** identity page table, all pages writable, no pages user-accessible, kernel mode.
+- **Reset state:** identity page table, all pages writable, no pages user-accessible, kernel mode. Reset happens on the **falling edge** of `resetb` (`always @(negedge phi2 or negedge resetb)`): holding `resetb` low from time 0 without an edge leaves everything `X`. In `tb.v` it works because `resetb = ~reset` goes from X to 0.
 - **Timing:** state changes happen on the falling clock edge (`phi2` negedge).
 
 ## Simulation files
@@ -103,4 +103,4 @@ Rules:
 | `/tmp/bb6502_in` | `r` | Keyboard input (regular file) |
 | `/tmp/bb6502_gpu` | `w` | GPU output (FIFO; `gpu` reads the other end) |
 
-These paths are relative, so `vvp` must run from the project root; the Makefile does this.
+The `build/` and `rtl/` paths are relative, so `vvp` must run from the project root; the Makefile does this.

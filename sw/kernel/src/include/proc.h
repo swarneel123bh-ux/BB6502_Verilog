@@ -22,7 +22,10 @@ typedef struct process_struct {
   uint8_t _pad[18];             // pad to 64 (yield.s: PROC_SIZE_SHIFT = 6)
 } PROCESS;
 // Compile-time check: yield.s indexes plist with plist_idx << 6
+// (the comparison is constant on purpose, so silence cc65's warning about it)
+#pragma warn (const-comparison, push, off)
 typedef char _proc_size_check[1 - 2 * (sizeof(PROCESS) != 64)];
+#pragma warn (const-comparison, pop)
 extern PROCESS plist[4];	// only 4 for now, later redefine to 8
 extern uint8_t block_buf[512];
 extern uint8_t plist_idx;

@@ -6,7 +6,7 @@ A program calls the kernel by putting arguments in **its own zero page** and exe
 
 ```asm
 _sys_puts:
-    sta SYS_ARG0_LO      ; $34  string pointer (cc65 passes it in A/X)
+    sta SYS_ARG0_LO      ; $34 by default: string pointer (cc65 passes it in A/X)
     stx SYS_ARG0_HI      ; $35
     pha                  ; save A/X/Y on the process stack:
     phx                  ; brk_handler can't, because the stack it sees
@@ -58,6 +58,8 @@ Kernel side:
 5. Return: `JMP ($FFF8)` → `ret_user_mode` → user mode → `RTI` to the instruction after the number byte.
 
 ## Syscall list
+
+Addresses below are the defaults (`SYS_ABI_BASE` = `$30`).
 
 | # | Name | Arguments | Result |
 |---|---|---|---|

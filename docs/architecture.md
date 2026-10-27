@@ -46,7 +46,7 @@ sequenceDiagram
     R->>K: JMP (entry) → crt0 → main()
     K->>K: install brk_handler at $FE/$FF, identity-map MMU
     K->>D: read LBA 0, check FAT signature 55 AA
-    K->>D: spawn_bbx(200,…) hello, spawn_bbx(210,…) hello2
+    K->>D: spawn_bbx(200,…) hello, (210,…) hello2, (220,…) disktest
     K->>S: sched_start()
     S->>P: load plist[0] SP + page table, JMP ($FFF8) → user mode, RTI
     P->>S: sys_yield() → BRK #0 → do_yield → next process
@@ -60,7 +60,7 @@ Everything before `sched_start` runs in **kernel mode**, where the MMU passes ad
 |---|---|
 | User → kernel | `BRK` + a syscall-number byte. The CPU fetches the IRQ/BRK vector at `$FFFE`, which pulls `VPB` low, and the MMU switches to kernel mode. The vector points at `brk_trampoline` (`JMP ($00FE)`), which jumps to the kernel's `brk_handler`. |
 | Kernel → user | `JMP ($FFF8)` → `ret_user_mode` in ROM: `STZ $80A8` (user mode), then `RTI`. The RTI pops the status and PC from the process's own stack page. |
-| Fault | Any MMU violation forces kernel mode and raises NMI. The boot ROM's NMI handler is only `RTI` for now. |
+| Fault | Any MMU violation forces kernel mode and raises NMI. The boot ROM's NMI handler is only `RTI` for now, so the process resumes **still in kernel mode**: with no protection and no translation, it then reads physical memory at its virtual addresses. A real fault handler is still to come. |
 
 ## Repository layout
 
@@ -71,7 +71,7 @@ rtl/
   mmu6502.v             MMU
   rtl.mk                builds sim.vvp, sim_dbg.vvp, bbdbg.vpi, gpu
   dbg/                  debugger (VPI module)
-  verilog-65C02-microcode/   CPU core (submodule)
+  verilog-65C02-microcode/   CPU core (submodule, branch bb6502 of the fork)
 sw/
   boot/                 boot ROM: boot.s, boot.cfg, devices.s
   kernel/               kernel: src/*.c, src/*.s, kernel.cfg, kernel.mk

@@ -19,7 +19,7 @@ vvp -M build -m bbdbg build/sim_dbg.vvp +dbg_sym=build/boot.dbg +dbg_sym=build/k
 The debugger draws on your terminal (`/dev/tty`), and vvp's own messages go to `build/sim_dbg.log`. To load more symbol files or pick a source file:
 
 ```bash
-make run-dbg DBG_ARGS="+dbg_sym=build/hello2.dbg"
+make run-dbg DBG_ARGS="+dbg_sym=build/disktest.dbg"
 ```
 
 ## Screen
@@ -71,7 +71,12 @@ The BB6502 software doesn't execute `STP` yet. Making `sys_exit` end with `STP` 
 ## What you see, exactly
 
 - **Instruction boundaries.** The debugger runs at every opcode fetch (the cycle with `sync` high). Registers are sampled half a cycle later, after the previous instruction's register write-back has landed. So `r` shows the state just before the instruction at `PC` executes. After `reset; s 4` (`SEI CLD LDX #$FF TXS`), `r` shows `SP=ff X=ff`.
-- **Registers** come from Arlet's register file: `regs[2]` = A, `[0]` = X, `[1]` = Y, `[3]` = S. Flags come from `P`. The PC is the fetch address.
+- **Registers** come from Arlet's register file: `regs[2]` = A, `[0]` = X, `[1]` = Y, `[3]` = S. Flags come from `P`. The PC is the fetch address. Stopped inside `disktest`, `r` looks like this. Each `PPN` group lists the physical page for 8 consecutive 1 KB virtual pages:
+  ```
+  PC=1050 SP=fb A=90 X=11 Y=00 status=21
+  flags=..-....C  MMU=user
+  PPN [ 0.. 7] 20 21 22 23 24 25 26 27  [ 8..15] 28 29 30 31  0  1  2  3  [16..23] ...
+  ```
 - **Memory** is shown through the MMU's current state, the same way the CPU sees it:
   - **`$0000-$7FFF`:** in kernel mode, physical = virtual. In user mode it goes through `ppn[VA[14:10]]` (1 KB pages). Stopping inside a process therefore shows *that process's* memory: `m 0x1000 0x1005` shows its BBX header.
   - **`$8000-$80FF`** is shown as `..`. Reading a device register can change it (reading the ACIA clears RX-valid), so the debugger never touches the I/O window.

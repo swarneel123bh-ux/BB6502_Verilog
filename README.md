@@ -10,7 +10,7 @@ A 65C02 computer simulated at the hardware level, with its own operating system 
 - **Software (cc65 C + ca65 assembly):**
   - a boot ROM that loads the kernel from disk
   - a kernel with **processes**, **cooperative multitasking** (`yield`), **BRK-based syscalls** and a loader for `.bbx` executables
-  - two demo programs that run side by side
+  - three demo processes that run side by side, one of which tests disk access through syscalls
 - **Tools:**
   - an SDL "monitor" window
   - an **ncurses debugger** that runs inside the simulator as a VPI module and controls the real RTL CPU: breakpoints, stepping, registers, MMU-aware memory dumps, 65C02 disassembly
@@ -37,7 +37,7 @@ git clone --recurse-submodules https://github.com/swarneel123bh-ux/BB6502_Verilo
 cd BB6502_Verilog && make run
 ```
 
-An SDL window opens showing the boot messages, followed by the two demo processes taking turns:
+An SDL window opens showing the boot messages, followed by the demo processes taking turns:
 
 ```
 BB6502 boot ROM
@@ -47,6 +47,7 @@ FAT boot signature OK
 ...
 Proc1:0
     Proc2:0
+        disktest: ret=00 sig=55 AA PASS
 Proc1:1
 ```
 

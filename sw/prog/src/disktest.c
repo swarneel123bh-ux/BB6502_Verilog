@@ -9,7 +9,7 @@
 #include "include/syslib.h"
 #include <stdint.h>
 
-// Must not cross a 4 KB virtual page: the kernel translates only the start
+// Must not cross a 1 KB virtual page: the kernel translates only the start
 // address (check _buf in build/disktest.dbg; it sits just above $1000).
 static uint8_t buf[512];
 

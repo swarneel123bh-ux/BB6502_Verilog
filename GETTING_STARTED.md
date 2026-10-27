@@ -82,9 +82,8 @@ The output includes some warnings. These are expected and harmless:
 - `no explicit time unit` (Verilog)
 - `Calling system function $fseek() as a task` (shown when the sim starts)
 - `Segment 'VECTORS' does not exist` (linker)
-- `'PPN' is defined but never used` (C)
 
-`make` should end with lines like `Hello2 program -> LBA 210` and no `Error`.
+`make` should end with lines like `Disk test      -> LBA 220` and no `Error`.
 
 ---
 
@@ -103,9 +102,11 @@ Jumping to Kernel
 FAT boot signature OK
 Loading hello.c
 Loading hello2.c
+Loading disktest.c
 Staring scheduler...
 Proc1:0
     Proc2:0
+        disktest: ret=00 sig=55 AA PASS
 Proc1:1
     Proc2:1
 ...
@@ -113,14 +114,15 @@ Proc1:1
 
 Here's what that means:
 1. The CPU starts in the boot ROM, which reads the kernel from the disk image and jumps to it.
-2. The kernel loads two programs and starts them as separate **processes**.
-3. Each process prints a line and then *yields*, letting the other one run. This is cooperative multitasking.
+2. The kernel loads three programs and starts them as separate **processes**.
+3. `hello` and `hello2` each print a line and then *yield*, letting the next process run. This is cooperative multitasking.
+4. `disktest` reads the disk's first sector through a syscall once, checks its `55 AA` signature, prints `PASS`, and from then on only yields.
 
 The same text also appears in the Terminal, through the simulated serial port.
 
 **To stop:** close the window, or press **Ctrl-C** in the Terminal.
 
-The simulation runs every clock cycle of every chip, so it is much slower than a real 65C02. Seconds per line of output is normal.
+The simulation runs every clock cycle of every chip, so it is much slower than a real 65C02. Several lines per second is normal.
 
 ---
 
@@ -136,7 +138,7 @@ The monitor window opens as before, and the Terminal turns into the debugger. It
 ┌ terminal pane: serial output ┐┌ source pane (empty) ┐
 └──────────────────────────────┘└─────────────────────┘
 ┌ console ─────────────────────────────────────────────┐
-│Loaded 73 symbols total                               │
+│Loaded 75 symbols total                               │
 │Stopped before the first instruction. Type h for help.│
 │        8105    SEI                                   │
 │>>                                                    │
@@ -148,7 +150,7 @@ The CPU is frozen before its first instruction. Try this:
 | Type | What happens |
 |---|---|
 | `s 4` | Executes 4 instructions, printing each one |
-| `r` | Shows the registers (A, X, Y, SP, flags) and the MMU state |
+| `r` | Shows the registers (A, X, Y, SP, flags), the MMU mode and the 32-entry page table |
 | `b _main` | Sets a breakpoint at the kernel's `main` function |
 | `c` | Runs until the breakpoint. This takes a few seconds while the boot ROM loads the kernel. |
 | `d 10` | Disassembles the next 10 instructions |
@@ -175,7 +177,7 @@ Programs are C files compiled with cc65. They run as processes and talk to the k
 
 The kernel doesn't yet load programs by name, so adding one means editing a few files. The project already does this once for `disktest` (`sw/prog/src/disktest.c`, the `PROG3_*` lines); use it as a working reference.
 
-Example: a process called `count` that takes **`disktest`'s place**. Each process needs two physical pages, and they're all taken right now (kernel 0, hello 1–2, hello2 3–4, disktest 5–6, plus the kernel's C stack in page 7), so a new program has to replace one until process memory is allocated properly.
+Example: a process called `count` that takes **`disktest`'s place**. Until the kernel has a page allocator, `spawn_bbx` hands out memory in fixed 4 KB blocks. Each process uses blocks `base` and `base + 1`, and they're all taken right now: the kernel 0 and 7, hello 1–2, hello2 3–4, disktest 5–6. So a new program has to replace one.
 
 **1. Write the program**: `sw/prog/src/count.c`
 
@@ -227,7 +229,7 @@ The recipe line must start with a **tab**, not spaces. Keep `$(LD65_PROG_FLAGS)`
   spawn_bbx(230, 1, 5);    // count.c at lba 230, physical pages from 5
 ```
 
-The arguments are: disk sector, number of sectors to load (1 is enough while `build/count.bbx` is at most 512 bytes; the demos are about 240), and the first physical page. 5 is the base `disktest` used; the demos use 1–2 and 3–4. At most 4 processes are supported.
+The arguments are: disk sector, number of sectors to load (1 is enough while `build/count.bbx` is at most 512 bytes; the demos are 240–400), and `base`, the first 4 KB block. 5 is the base `disktest` used; the demos use 1 and 3. At most 4 processes are supported.
 
 **6. Rebuild and run:**
 

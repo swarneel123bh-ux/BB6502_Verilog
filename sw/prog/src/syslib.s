@@ -118,13 +118,11 @@ _sys_puts:
 ; ------------------------------------------------------------
 ; uint8_t sys_block_read(uint16_t lba, uint8_t* buf)
 ;
-; cc65 stack layout on entry:
-;   sp+0  return lo
-;   sp+1  return hi
-;   sp+2  lba lo
-;   sp+3  lba hi
-;   sp+4  buf lo
-;   sp+5  buf hi
+; cc65 __fastcall__ on entry:
+;   A/X       buf (the last argument, lo/hi)
+;   C stack   lba (2 bytes at (sp), taken off with popax)
+; buf must not cross a 1 KB virtual page (the kernel translates only its
+; start address).
 ; ------------------------------------------------------------
 _sys_block_read:
 

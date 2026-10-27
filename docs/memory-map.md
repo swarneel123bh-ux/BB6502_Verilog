@@ -20,21 +20,24 @@
 | `$8001` | ACIA status |
 | `$8002` | GPU data |
 | `$8003` | GPU status |
+| `$8080-$809F` | MMU page table `ppn[0..31]` |
+| `$80A0-$80A3` | MMU user-access bits (32 bits) |
+| `$80A4-$80A7` | MMU write-permission bits (32 bits) |
+| `$80A8` | MMU mode (bit 0: 1 = kernel, 0 = user) |
+| `$80A9-$80BF` | MMU, reserved (read as 0) |
 | `$80E0-$80E3` | Disk LBA (32-bit, little-endian) |
 | `$80E4` | Disk command |
 | `$80E5` | Disk status |
 | `$80E6` | Disk data |
 | `$80E7` | Disk buffer pointer reset |
-| `$8080-$809F` | MMU page table `ppn[0..31]` |
-| `$80A0-$80A3` | MMU user-access bits (32 bits) |
-| `$80A4-$80A7` | MMU write-permission bits (32 bits) |
-| `$80A8` | MMU mode (bit 0: 1 = kernel, 0 = user) |
+
+Everything else in the window reads as `$FF` and ignores writes.
 
 ## Physical RAM (32 KB = 32 pages of 1 KB)
 
 | Physical pages | Range | Used by |
 |---|---|---|
-| 0–3 | `$0000-$0FFF` | **Kernel**: zero page (`$00-$1F` cc65, `$30-$55` fixed slots, `$FE/$FF` BRK handler pointer), stack `$0100`, kernel image `$0200-$0D18`. `$0D19-$0FFF` is currently free. |
+| 0–3 | `$0000-$0FFF` | **Kernel**: zero page (`$00-$1F` cc65, `$30-$55` fixed slots, `$FE/$FF` BRK handler pointer), stack `$0100`, kernel code and data `$0200-$0D18` (the image is padded to `$0FFF`, so `$0D19-$0FFF` is currently free). |
 | 4–11 | `$1000-$2FFF` | `hello` (base 1) |
 | 12–19 | `$3000-$4FFF` | `hello2` (base 3) |
 | 20–27 | `$5000-$6FFF` | `disktest` (base 5) |
@@ -68,5 +71,6 @@ The disk is first formatted **FAT32** by `mformat -F`: reserved sectors 0–31, 
 | 101–107 | `kernel.bbx` (3584 bytes) |
 | 200 | `hello.bbx` |
 | 210 | `hello2.bbx` |
+| 220 | `disktest.bbx` |
 
 The raw sectors are inside the FAT data area but are not reserved in the FAT. If files are copied onto the disk (`disk/` directory → `mcopy`), they may land on the same sectors.
