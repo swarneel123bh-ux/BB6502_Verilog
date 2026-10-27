@@ -1,0 +1,4 @@
+[submodule "rtl/verilog-65C02-microcode"]
+	path = rtl/verilog-65C02-microcode
+	url = https://github.com/swarneel123bh-ux/verilog-65C02-microcode.git
+	branch = bb6502
