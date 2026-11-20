@@ -39,6 +39,7 @@ KERNEL_LBA   := 101
 PROG_LBA  := 200
 PROG2_LBA := 210
 PROG3_LBA := 220
+REG_LBA   := 230
 
 # Simulator (paced to the wall clock) and debugger: Verilator builds of the same RTL
 SIM_BIN      := $(BUILD_DIR)/sim/obj/Vtb
@@ -53,6 +54,7 @@ BOOT_REC_BIN := $(BUILD_DIR)/bootrec.bin
 PROG_BBX  := $(BUILD_DIR)/hello.bbx
 PROG2_BBX := $(BUILD_DIR)/hello2.bbx
 PROG3_BBX := $(BUILD_DIR)/disktest.bbx
+REG_BBX   := $(BUILD_DIR)/regtest.bbx
 DISK_IMG     := $(BUILD_DIR)/disk.img
 
 # ld65 debug-info files (symbol tables for the debugger)
@@ -61,3 +63,4 @@ KERNEL_DBG   := $(BUILD_DIR)/kernel.dbg
 PROG_DBG     := $(BUILD_DIR)/hello.dbg
 PROG2_DBG    := $(BUILD_DIR)/hello2.dbg
 PROG3_DBG    := $(BUILD_DIR)/disktest.dbg
+REG_DBG    := $(BUILD_DIR)/regtest.dbg

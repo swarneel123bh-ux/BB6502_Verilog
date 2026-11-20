@@ -91,7 +91,7 @@ int main(void) {
   *ZP_TIMER_INT_COUNT2 = 0;
   *ZP_TIMER_INT_COUNT3 = 0;
   *TIMER_CTL = TIMER_IRQ_ENABLE_ALL;     // every channel may interrupt; modes set below
-  TIMER_SET_MS(0, 100);        // timer 0: every 100 ms
+  TIMER_SET_MS(0, 100);        // timer 0: every 500 ms
   TIMER_SET_MS(1, 1000);       // timer 1: every 1 s
   TIMER_SET_MS(2, 10000);      // timer 2: every 10 s
   TIMER_SET_MS(3, 15000);      // timer 3: every 15 s
@@ -101,6 +101,8 @@ int main(void) {
   spawn_bbx(200, 1, 1);    // hello.c at lba 200
   k_print("Loading hello2.c\r\n");
   spawn_bbx(210, 1, 3);    // hello2.c at lba 210
+  // Register test (regtest.c, 3 sectors) instead of hello2: comment out the line
+  // above and use  spawn_bbx(230, 3, 3);  (REG_LBA is 230 in common.mk)
   k_print("Loading disktest.c\r\n");
   spawn_bbx(220, 1, 5);    // disktest.c at lba 220 (sys_block_read test)
   k_print("Staring scheduler...\r\n");

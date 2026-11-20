@@ -53,3 +53,15 @@ This is **cooperative**: a process that never calls `sys_yield` keeps the CPU fo
 - `sys_exit` halts the whole machine. Exited processes are never reclaimed.
 - No isolation. `base + k` wraps around, and every user page is accessible and writable (see [memory-map.md](memory-map.md#physical-ram-32-kb--32-pages-of-1-kb)).
 - The kernel decides what to load in `main.c`, by fixed sector number. There is no shell and no loading by file name yet.
+
+## Register test
+
+`sw/prog/src/regtest.c` checks that A, X and Y survive a switch. It is on the disk at LBA 230 (`regtest.bbx`), but `main.c` spawns `hello2` by default. To run it, replace the `hello2` spawn with `spawn_bbx(230, 3, 3);` (see the comment in `main.c`).
+
+Each round loads A=`$A5`, X=`$5A`, Y=`$3C`, then either calls `sys_yield` (yield rounds) or runs a delay loop (preempt rounds, which timer 0 can interrupt). The registers are stored straight after, and any mismatch is counted. It prints a line every 100 rounds:
+
+```
+regtest: rounds=300 yield=150 preempt=150 fail_yield=0 fail_preempt=0
+```
+
+It is built without `-Oir`. With that flag, cc65 drops the register loads that come before the `jsr` in the yield round's inline asm, and the test would check nothing.

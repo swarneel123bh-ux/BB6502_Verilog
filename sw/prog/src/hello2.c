@@ -10,7 +10,7 @@ int main(void) {
 		sys_putc(i + '0');
 		sys_puts("\r\n");
 		i ++;
-		sys_yield();
+		// sys_yield();
 	}
   sys_exit(0);
   return 0;

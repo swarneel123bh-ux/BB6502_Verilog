@@ -8,6 +8,7 @@
 .import do_yield
 .import save_process
 .import restore_process
+.import do_preempt
 .import calc_proc_ptr
 .include "include/devices.s"
 .include "include/zp.s"
@@ -160,7 +161,7 @@ handle_timer0:
 				sta TIMER_ST
 				inc ZP_TIMER_INT_COUNT0
 				pla
-				jmp restore_process
+				jmp do_preempt						; This is the timer-preemption subroutine
 
 handle_timer1:
 				pha
