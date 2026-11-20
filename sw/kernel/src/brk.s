@@ -125,7 +125,7 @@ _brk_handler:
 irq_path:
 				sei
 				jsr calc_proc_ptr
-				jsr save_process
+				; jsr save_process
 
 				; Find out what device caused the irq (right now only a timer can cause one
 				lda TIMER_ST        ; one read: snapshot the flags
@@ -134,55 +134,56 @@ irq_path:
 
     		lsr                 ; bit 0 -> carry
     		bcc @not_timer0
-    		jmp handle_timer0
+      	stz ZP_PREEMPT_PENDING	; Doing this, then calling inc since ZP may be X in sim, not required in real ig
+      	inc ZP_PREEMPT_PENDING
+    		; jmp handle_timer0
 @not_timer0:
     		lsr                 ; bit 1 -> carry
     		bcc @not_timer1
-      	jmp handle_timer1
+@handle_timer1:
+				pha
+				lda #$02									; Writing status register with the correct bit set should clear the int
+				sta TIMER_ST
+				inc ZP_TIMER_INT_COUNT1
+				pla
 @not_timer1:
       	lsr                 ; bit 2 -> carry
       	bcc @not_timer2
-      	jmp handle_timer2
+@handle_timer2:
+				pha
+				lda #$04									; Writing status register with the correct bit set should clear the int
+				sta TIMER_ST
+				inc ZP_TIMER_INT_COUNT2
+				pla
 @not_timer2:
       	lsr                 ; bit 3 -> carry
       	bcc @not_timer3
-      	jmp handle_timer3
+@handle_timer3:
+				pha
+				lda #$08									; Writing status register with the correct bit set should clear the int
+				sta TIMER_ST
+				inc ZP_TIMER_INT_COUNT3
+				pla
 @not_timer3:										; The int was not due to a timer, nothing else is there, so just return
-				jmp restore_process
+				pha
+				lda ZP_PREEMPT_PENDING
+				beq @no_preempt_pending
+@handle_timer0:
+				lda #$01									; Writing status register with the correct bit set should clear the int
+				sta TIMER_ST
+				inc ZP_TIMER_INT_COUNT0
+				stz ZP_PREEMPT_PENDING
+				pla
+				jmp do_preempt
+@no_preempt_pending:
+				pla
+				lda ZP_IRQ_A
+				ldx ZP_IRQ_X
+				ldy ZP_IRQ_Y
+				jmp (RET_USER_MODE)
 
 
 ; --------- IRQ HANDLERS ------------
 
 ; Handle the correct timer's interrpt
 ; Later, we jump to a subroutine the kernel registers
-handle_timer0:
-				pha
-				lda #$01									; Writing status register with the correct bit set should clear the int
-				sta TIMER_ST
-				inc ZP_TIMER_INT_COUNT0
-				pla
-				jmp do_preempt						; This is the timer-preemption subroutine
-
-handle_timer1:
-				pha
-				lda #$02									; Writing status register with the correct bit set should clear the int
-				sta TIMER_ST
-				inc ZP_TIMER_INT_COUNT1
-				pla
-				jmp restore_process
-
-handle_timer2:
-				pha
-				lda #$04									; Writing status register with the correct bit set should clear the int
-				sta TIMER_ST
-				inc ZP_TIMER_INT_COUNT2
-				pla
-				jmp restore_process
-
-handle_timer3:
-				pha
-				lda #$08									; Writing status register with the correct bit set should clear the int
-				sta TIMER_ST
-				inc ZP_TIMER_INT_COUNT3
-				pla
-				jmp restore_process

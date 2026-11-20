@@ -52,18 +52,28 @@ Processes switch in two ways:
 
 Every switch saves SP, the page table, and A, X and Y (offsets 46–48). The restore loads A, X and Y from the block before `RET_USER_MODE`, so a process sees its registers unchanged across a switch. The register test (below) checks that.
 
-The timers 1–3 interrupts return to the same process.
+The timers 1–3 interrupts return to the same process without a switch. `irq_path` counts them and clears their flags, then returns through a fast path that does not save or restore the process.
+
+Measured in simulation (1 clock = 1 µs; from `_brk_handler` entry to the RTI that resumes a process):
+
+| Path | Clocks |
+|---|---|
+| Timer 1–3 fast return | about 140 (135–151) |
+| Timer 0 preempt | about 1,900 (1,902–1,918) |
+| `sys_yield` | about 1,880 (1,881–1,888) |
+
+The preempt and yield cost is almost all the page-table save and restore. Syscalls that print are much slower, because `puts` waits for the ACIA between characters.
 
 ## Limitations
 
 - At most 4 processes. `spawn_bbx` refuses more.
 - `sys_exit` halts the whole machine. Exited processes are never reclaimed.
-- No isolation. `base + k` wraps around, and every user page is accessible and writable (see [memory-map.md](memory-map.md#physical-ram-32-kb--32-pages-of-1-kb)).
+- No isolation. `base + k` wraps around, and every user page is accessible and writable (see [memory-map.md](memory-map.md#physical-ram-32-kb--32-pages-of-1-kb)). `main.c` gives regtest blocks 3–5 and disktest block 5, so the two overlap in physical RAM. They run correctly today, but this is luck, not isolation. Moving disktest to block 6 hung the boot, and the cause is not known yet.
 - The kernel decides what to load in `main.c`, by fixed sector number. There is no shell and no loading by file name yet.
 
 ## Register test
 
-`sw/prog/src/regtest.c` checks that A, X and Y survive a switch. It is on the disk at LBA 230 (`regtest.bbx`), but `main.c` spawns `hello2` by default. To run it, replace the `hello2` spawn with `spawn_bbx(230, 3, 3);` (see the comment in `main.c`).
+`sw/prog/src/regtest.c` checks that A, X and Y survive a switch. It is on the disk at LBA 230 (`regtest.bbx`), but `main.c` spawns it in place of `hello2`. To go back to `hello2`, swap the two spawn lines (see the comment in `main.c`).
 
 Each round loads A=`$A5`, X=`$5A`, Y=`$3C`, then either calls `sys_yield` (yield rounds) or runs a delay loop (preempt rounds, which timer 0 can interrupt). The registers are stored straight after, and any mismatch is counted. It prints a line every 100 rounds:
 

@@ -19,6 +19,7 @@
 #define ZP_TIMER_INT_COUNT1 ((volatile uint8_t*) 0x0062) 				// but i need to test the timers out too so im using this temporarily
 #define ZP_TIMER_INT_COUNT2 ((volatile uint8_t*) 0x0064) 				// later on, the kernel defines how to handle, and brk.s simply points to that
 #define ZP_TIMER_INT_COUNT3 ((volatile uint8_t*) 0x0067) 				// subroutine
+#define ZP_PREEMPT_PENDING ((volatile uint8_t*) 0x0068)				// set by the timer-0 IRQ (brk.s), cleared when it is handled
 
 // _brk_handler
 // Kernel must install its address at $00FE/$00FF after boot: the IRQ/BRK
@@ -85,7 +86,7 @@ int main(void) {
   }
 
   // Timer interrupts test
-
+  *ZP_PREEMPT_PENDING = 0;
   *ZP_TIMER_INT_COUNT0 = 0;							// Set counters to 0
   *ZP_TIMER_INT_COUNT1 = 0;
   *ZP_TIMER_INT_COUNT2 = 0;
@@ -99,10 +100,13 @@ int main(void) {
   // Cooperative multitasking test
   k_print("Loading hello.c\r\n");
   spawn_bbx(200, 1, 1);    // hello.c at lba 200
-  k_print("Loading hello2.c\r\n");
-  spawn_bbx(210, 1, 3);    // hello2.c at lba 210
-  // Register test (regtest.c, 3 sectors) instead of hello2: comment out the line
-  // above and use  spawn_bbx(230, 3, 3);  (REG_LBA is 230 in common.mk)
+  // hello2.c (lba 210) is replaced by the register test (regtest.c, 3 sectors, lba 230).
+  // regtest takes blocks 3-5 and disktest uses block 5, so the two overlap physically.
+  // This runs correctly today, but processes are not isolated until the page allocator
+  // lands (see sw/kernel/src/proc.c, "Known limitation"). Moving disktest to block 6
+  // hung the boot; that is not explained yet.
+  k_print("Loading regtest.c\r\n");
+  spawn_bbx(230, 3, 3);    // regtest.c at lba 230
   k_print("Loading disktest.c\r\n");
   spawn_bbx(220, 1, 5);    // disktest.c at lba 220 (sys_block_read test)
   k_print("Staring scheduler...\r\n");

@@ -21,5 +21,7 @@ ZP_TIMER_INT_COUNT0	 	= $60				; How many interrupts have happend, i dont think 
 ZP_TIMER_INT_COUNT1	 	= $62				; but i need to test the timers out too so im using this temporarily
 ZP_TIMER_INT_COUNT2	 	= $64				; later on, the kernel defines how to handle, and brk.s simply points to that
 ZP_TIMER_INT_COUNT3	 	= $67				; subroutine
+ZP_PREEMPT_PENDING 		= $68				; Flag to check whether or not a preemption is pending
+
 
 RET_USER_MODE					= $FFF8

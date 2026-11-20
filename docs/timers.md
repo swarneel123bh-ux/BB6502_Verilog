@@ -31,7 +31,7 @@ The clock constant is `CLK_HZ = 1_000_000` (set in `rtl/tb.v`, matching the 1 MH
 
 - The IRQ line is level-sensitive: it stays asserted while any enabled pending flag is set. The CPU keeps taking the interrupt until the flag is cleared.
 - Each handler clears its own flag by writing its bit to `TIMER_ST`, then counts the interrupt.
-- The IRQ path (`brk.s`, `irq_path`) reads `TIMER_ST` and dispatches to the lowest set bit's handler. One handler runs per interrupt. A flag that is still set after the handler returns causes another interrupt straight away.
+- The IRQ path (`brk.s`, `irq_path`) reads `TIMER_ST` once and handles every set flag in that one interrupt. Timers 1–3 are counted and acknowledged inline. Timer 0 is acknowledged and sets `ZP_PREEMPT_PENDING`; if it was set, the interrupt goes to `do_preempt`, otherwise it returns through the fast path. Any flag still set after the acknowledge causes another interrupt straight away.
 - The handlers count interrupts in the zero-page counters `ZP_TIMER_INT_COUNT0`–`3` (`$60`, `$62`, `$64`, `$67`). Those counters must be zeroed at boot; `main.c` does it.
 
 ## Setup from C
@@ -54,17 +54,17 @@ The macros are the only supported way to set the timers. Writing `TIMER_CTL` wit
 
 ## The 100 Hz clamp
 
-`TIMER_MAX_HZ` is 100. The reason is the interrupt path's cost. Servicing one interrupt means saving and restoring the page table, which takes about 1,100 clocks (about 1.1 ms of simulated time). A Hz timer that fires faster than that means the next interrupt is pending before the process runs again, so the process never makes progress.
+`TIMER_MAX_HZ` is 100. It is still in place. The costs measured in [processes.md](processes.md) are about 140 clocks for a timer 1–3 fast return and about 1,900 clocks for a timer 0 preempt or yield. A timer 1–3 at 1 kHz would spend about 14% of the CPU on its fast return, which should leave the process room to run. That has not been tested yet, so the clamp stays until it is.
 
-The clamp is only for Hz channels. ms channels are not limited by it. Anything at 1 kHz or above with a 1,100-clock path is at risk of this starvation.
+The clamp is only for Hz channels. ms channels are not limited by it.
 
 ## Not done yet
 
 - **Only timer 0 reschedules.** Timer 0 is the preemption tick: its interrupt switches to the next process (see [processes.md](processes.md)). Timers 1–3 clear their flag and return to the same process.
-- **Starvation is not fixed in general.** The clamp keeps the timers slow enough for the current interrupt path. Servicing every pending flag per interrupt, or shortening the save and restore, would remove the need for it.
+- **Starvation has not been retested above 100 Hz.** The fast return for timers 1–3 is much cheaper than the old save and restore, but the clamp has not been raised yet.
 
 ## Debugging
 
 - Read the counters with `m 0x0060 0x0067` while the CPU is in kernel mode. In user mode, `m` reads through the process's page table and shows the process's own memory. `r` shows `MMU=kernel` or `MMU=user`.
-- To check that the timers are firing, set a breakpoint on `handle_timer0` (see `build/kernel.dbg`) and continue.
+- To check that the timers are firing, set a breakpoint on `do_preempt` (see `build/kernel.dbg`) and continue. Timer 0 reaches it on every tick.
 - Simulated time runs at 1 MHz, so a 10 s timer takes 10 s of simulated time. `make run` paces the simulation to the wall clock, so the same timer takes 10 s of real time there. `make run-fast` is much quicker, and `make run-dbg` runs as fast as the debugger allows.
