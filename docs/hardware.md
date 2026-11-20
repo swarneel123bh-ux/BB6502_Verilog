@@ -49,6 +49,10 @@ Writing `$8002` appends the byte to `/tmp/bb6502_gpu` and flushes it. `tools/gpu
 
 Keys typed into the window are written to `/tmp/bb6502_in`: printable text, Enter as `\r`, Backspace as `$08`, Tab, Esc, and Ctrl-A..Z as `$01-$1A`.
 
+## Timers
+
+Four interval timers at `$8010`–`$801D`, each in Hz or ms mode, with a pending flag and an IRQ enable per channel. Register map, periods, interrupt behaviour and the setup macros are in [timers.md](timers.md).
+
 ## Disk controller
 
 A 512-byte sector buffer in front of `build/disk.img` (opened read/write, so writes are saved).

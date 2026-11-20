@@ -69,6 +69,7 @@ make run-dbg
 | [docs/processes.md](docs/processes.md) | Process table, loader, scheduler, context switch |
 | [docs/build-system.md](docs/build-system.md) | Makefiles, linker configs, how the disk image is made |
 | [docs/debugger.md](docs/debugger.md) | Using the debugger and how it is wired into the simulation |
+| [docs/timers.md](docs/timers.md) | The four interval timers: registers, periods, interrupts, setup macros |
 
 ## Credits
 
