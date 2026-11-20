@@ -14,6 +14,7 @@
 .export save_process
 .export restore_process
 .export calc_proc_ptr
+.export do_preempt
 
 ; .import yield_rti
 .include "include/devices.s"
@@ -30,6 +31,9 @@ PROC_OFF_STATE      = 0
 PROC_OFF_SP         = 13
 PROC_OFF_PPN0       = 14    ; ppn_table[0..31] -> 14..45
 PROC_SIZE_SHIFT     = 6     ; sizeof(PROCESS) = 1 << 6 = 64
+PROC_OFF_A					= 46
+PROC_OFF_X					= 47
+PROC_OFF_Y					= 48
 
 ; yield_rti address, so that we can simply jump (is in ROM)
 yield_rti = $FFF8
@@ -78,21 +82,61 @@ loop:
 
 
 save_process:
-				tsx	; save current SP at offset 13
+				; save A
+				lda ZP_IRQ_A
+				ldy #PROC_OFF_A
+				sta (ZP_CURR_PROC_PTR),y
+
+				; Save X
+				lda ZP_IRQ_X
+				ldy #PROC_OFF_X
+				sta (ZP_CURR_PROC_PTR),y
+
+				; Save Y
+				lda ZP_IRQ_Y
+				ldy #PROC_OFF_Y
+				sta (ZP_CURR_PROC_PTR),y
+
+				tsx	; save current CORRECT SP at offset 13
 				inx
 				inx
 				txa
 				ldy #PROC_OFF_SP
 				sta (ZP_CURR_PROC_PTR),y
-				SAVE_PPN
+
+				SAVE_PPN	; Save the process page table
+
 				rts
+
 
 restore_process:
 				ldy #PROC_OFF_SP ; load saved SP into X
 				lda (ZP_CURR_PROC_PTR),y
 				tax
 				txs
+
 				RESTORE_PPN		; restore PPN table (offsets 14..45)
+
+				; Restore A
+				ldy #PROC_OFF_A
+				lda (ZP_CURR_PROC_PTR),y
+				sta ZP_IRQ_A
+
+				; Restore X
+				ldy #PROC_OFF_X
+				lda (ZP_CURR_PROC_PTR),y
+				sta ZP_IRQ_X
+
+				; Restore Y
+				ldy #PROC_OFF_Y
+				lda (ZP_CURR_PROC_PTR),y
+				sta ZP_IRQ_Y
+
+				; Store into registers before exiting
+				lda ZP_IRQ_A
+				ldx ZP_IRQ_X
+				ldy ZP_IRQ_Y
+
 				jmp (RET_USER_MODE)
 
 ; ================================================================
@@ -132,6 +176,31 @@ do_yield:
   jmp restore_process
 
 
+do_preempt:
+				; --- &plist[plist_idx] -> ZP_CURR_PROC_PTR (running process) ---
+				jsr calc_proc_ptr
+
+				; mark running process WAITING
+				ldy #PROC_OFF_STATE
+				lda #PROC_STATE_WAITING
+				sta (ZP_CURR_PROC_PTR),y
+
+				jsr save_process	; Save SP and Page table
+				jsr _schedule_process ; pick next process (updates _plist_idx)
+
+				jsr calc_proc_ptr	; &plist[plist_idx] -> ZP_CURR_PROC_PTR (selected process)
+													; This JSR happens on the last process's stack frame
+
+				; mark selected process RUNNING
+				ldy #PROC_OFF_STATE
+				lda #PROC_STATE_RUNNING
+				sta (ZP_CURR_PROC_PTR),y
+
+				jmp restore_process
+
+
+
+
 ; ----------------------------------------------------------------
 ; calc_proc_ptr: ZP_CURR_PROC_PTR = &_plist + (_plist_idx * 64)
 ; Clobbers A. plist_idx < 4 so idx*64 < 256 (no high-byte carry
@@ -164,9 +233,7 @@ _sched_start:
   dex
   bpl @open_all
 
-
   jsr calc_proc_ptr       ; ZP_CURR_PROC_PTR = &plist[0]
-
 
   ldy #PROC_OFF_STATE
   lda #PROC_STATE_RUNNING
@@ -175,7 +242,6 @@ _sched_start:
   lda (ZP_CURR_PROC_PTR),y
   tax
   txs
-
 
   ; Load the mmu ppns
   RESTORE_PPN

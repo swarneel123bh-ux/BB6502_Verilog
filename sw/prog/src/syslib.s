@@ -56,14 +56,14 @@ _sys_exit:
 ; void sys_yield(void)
 ; ------------------------------------------------------------
 _sys_yield:
-		pha
-		phx
-		phy
+		; pha	; Don't push anymore to maintain continuity with irq path and brk path yields
+		; phx
+		; phy
 		brk
 		.byte 0
-		ply
-		plx
-		pla
+		; ply
+		; plx
+		; pla
 		rts
 @hang:
 		jmp @hang

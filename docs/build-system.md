@@ -21,7 +21,7 @@ sw/boot/boot.s ────────────────────ca65�
 kernel.bbx size ─mkbootrec.py─► bootrec.bin
 sw/prog/src/*.c,*.s ─cc65/ca65─► prog_*.o ─ld65 prog.cfg─► hello.bbx, hello2.bbx, disktest.bbx (+ .dbg)
 
-dd 1.44 MB zeros ─mformat -F─► FAT32 ─mcopy disk/*─► ─dd bootrec @100, kernel @101, hello @200, hello2 @210, disktest @220─► disk.img
+dd 1.44 MB zeros ─mformat -F─► FAT32 ─mcopy disk/*─► ─dd bootrec @100, kernel @101, hello @200, hello2 @210, disktest @220, regtest @230─► disk.img
 
 rtl/verilog-65C02-microcode/generic/*.v + rtl/tb.v + rtl/mmu6502.v ─verilator─► build/sim/obj/Vtb   (tools/fastsim/main.cpp, paced)
                                               same ─verilator --public-flat-rw─► build/dbgsim/obj/Vtb   (rtl/dbg/dbg_main.cpp + debugger.o)

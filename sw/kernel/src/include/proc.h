@@ -19,7 +19,8 @@ typedef struct process_struct {
   char name[PROC_NAME_MAX+1];   // offsets 4..12
   uint8_t SP;                   // offset 13
   uint8_t mmu_ppn_table[32];    // offsets 14..45 (one per 1 KB virtual page)
-  uint8_t _pad[18];             // pad to 64 (yield.s: PROC_SIZE_SHIFT = 6)
+  uint8_t A, X, Y;							// offsets 46, 47, 48
+  uint8_t _pad[15];             // pad to 64 (yield.s: PROC_SIZE_SHIFT = 6)
 } PROCESS;
 // Compile-time check: yield.s indexes plist with plist_idx << 6
 // (the comparison is constant on purpose, so silence cc65's warning about it)

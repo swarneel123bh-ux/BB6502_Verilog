@@ -60,7 +60,7 @@ The clamp is only for Hz channels. ms channels are not limited by it. Anything a
 
 ## Not done yet
 
-- **Timer interrupts do not reschedule.** The handlers clear their flag and return to the process that was interrupted. Only `sys_yield` switches processes. Preemption on a tick is the next step (see [processes.md](processes.md)).
+- **Only timer 0 reschedules.** Timer 0 is the preemption tick: its interrupt switches to the next process (see [processes.md](processes.md)). Timers 1–3 clear their flag and return to the same process.
 - **Starvation is not fixed in general.** The clamp keeps the timers slow enough for the current interrupt path. Servicing every pending flag per interrupt, or shortening the save and restore, would remove the need for it.
 
 ## Debugging

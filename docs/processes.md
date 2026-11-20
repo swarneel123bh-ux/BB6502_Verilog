@@ -45,7 +45,14 @@ process B: PLY PLX PLA ; RTS              (back in B's sys_yield stub)
 
 Only SP and the page table are saved in the table. Everything else (A, X, Y, flags, PC) lives on the process's own stack page, which is mapped back in when the page table is restored.
 
-This is **cooperative**: a process that never calls `sys_yield` keeps the CPU forever. The timers ([timers.md](timers.md)) raise interrupts, but those interrupts do not switch processes yet, so preemption is still to do.
+Processes switch in two ways:
+
+- **Cooperative:** `sys_yield` switches in `do_yield`. A process that never yields only gives up the CPU when it is preempted.
+- **Preemptive:** timer 0 ([timers.md](timers.md)) is the preemption tick. Its interrupt runs `do_preempt`, which saves the running process the same way `do_yield` does, then picks the next `WAITING` process and restores it. The interrupted instruction resumes exactly where it stopped, because the interrupt frame stays on that process's stack.
+
+Every switch saves SP, the page table, and A, X and Y (offsets 46–48). The restore loads A, X and Y from the block before `RET_USER_MODE`, so a process sees its registers unchanged across a switch. The register test (below) checks that.
+
+The timers 1–3 interrupts return to the same process.
 
 ## Limitations
 
@@ -53,3 +60,15 @@ This is **cooperative**: a process that never calls `sys_yield` keeps the CPU fo
 - `sys_exit` halts the whole machine. Exited processes are never reclaimed.
 - No isolation. `base + k` wraps around, and every user page is accessible and writable (see [memory-map.md](memory-map.md#physical-ram-32-kb--32-pages-of-1-kb)).
 - The kernel decides what to load in `main.c`, by fixed sector number. There is no shell and no loading by file name yet.
+
+## Register test
+
+`sw/prog/src/regtest.c` checks that A, X and Y survive a switch. It is on the disk at LBA 230 (`regtest.bbx`), but `main.c` spawns `hello2` by default. To run it, replace the `hello2` spawn with `spawn_bbx(230, 3, 3);` (see the comment in `main.c`).
+
+Each round loads A=`$A5`, X=`$5A`, Y=`$3C`, then either calls `sys_yield` (yield rounds) or runs a delay loop (preempt rounds, which timer 0 can interrupt). The registers are stored straight after, and any mismatch is counted. It prints a line every 100 rounds:
+
+```
+regtest: rounds=300 yield=150 preempt=150 fail_yield=0 fail_preempt=0
+```
+
+It is built without `-Oir`. With that flag, cc65 drops the register loads that come before the `jsr` in the yield round's inline asm, and the test would check nothing.
