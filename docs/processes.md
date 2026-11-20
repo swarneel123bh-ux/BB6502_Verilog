@@ -45,7 +45,7 @@ process B: PLY PLX PLA ; RTS              (back in B's sys_yield stub)
 
 Only SP and the page table are saved in the table. Everything else (A, X, Y, flags, PC) lives on the process's own stack page, which is mapped back in when the page table is restored.
 
-This is **cooperative**: a process that never calls `sys_yield` keeps the CPU forever. There is no timer interrupt yet.
+This is **cooperative**: a process that never calls `sys_yield` keeps the CPU forever. The timers ([timers.md](timers.md)) raise interrupts, but those interrupts do not switch processes yet, so preemption is still to do.
 
 ## Limitations
 

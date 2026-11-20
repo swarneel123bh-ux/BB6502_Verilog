@@ -1,7 +1,7 @@
 // ==========================================================================
 // gpu.c — the BB6502 "monitor": an SDL window for the GPU stream
 //
-// Runs as a separate process next to vvp (started by make run / run-dbg).
+// Runs as a separate process next to the simulator (started by make run / run-dbg).
 //   /tmp/bb6502_gpu  bytes the CPU writes to GPU_DATA ($8002) -> 80x25
 //                    text screen (\n, \r, \b and \f are interpreted)
 //   /tmp/bb6502_in   keys typed in the window are appended here; the

@@ -14,7 +14,7 @@ All of this is in `rtl/tb.v` unless noted otherwise. Addresses are CPU addresses
 | `AB` | Read | Write |
 |---|---|---|
 | `$0000-$7FFF` | `ram[mmu paddr]` | `ram[mmu paddr]` |
-| `$8000` | `acia_rx_data` | Byte printed on vvp's stdout (debug build: the debugger's terminal pane) |
+| `$8000` | `acia_rx_data` | Byte printed on the simulator's stdout (debug build: the debugger's terminal pane) |
 | `$8001` | `{6'b0, acia_tx_ready, acia_rx_valid}` | — |
 | `$8002` | — | Byte written to `/tmp/bb6502_gpu` |
 | `$8003` | `$01` (always ready) | — |
@@ -48,6 +48,10 @@ Writing `$8002` appends the byte to `/tmp/bb6502_gpu` and flushes it. `tools/gpu
 - the screen scrolls at the bottom
 
 Keys typed into the window are written to `/tmp/bb6502_in`: printable text, Enter as `\r`, Backspace as `$08`, Tab, Esc, and Ctrl-A..Z as `$01-$1A`.
+
+## Timers
+
+Four interval timers at `$8010`–`$801D`, each in Hz or ms mode, with a pending flag and an IRQ enable per channel. Register map, periods, interrupt behaviour and the setup macros are in [timers.md](timers.md).
 
 ## Disk controller
 
@@ -103,4 +107,4 @@ Rules:
 | `/tmp/bb6502_in` | `r` | Keyboard input (regular file) |
 | `/tmp/bb6502_gpu` | `w` | GPU output (FIFO; `gpu` reads the other end) |
 
-The `build/` and `rtl/` paths are relative, so `vvp` must run from the project root; the Makefile does this.
+The `build/` and `rtl/` paths are relative, so the simulator must run from the project root; the Makefile does this.

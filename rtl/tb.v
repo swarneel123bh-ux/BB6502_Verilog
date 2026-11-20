@@ -10,12 +10,13 @@
 //   Memory  ram[0:32767] physical RAM, rom[0:32511] = CPU $8100-$FFFF loaded
 //           from build/bootrom.hex.
 //   I/O     decoded below in the $8000-$80FF window:
-//             $8000 ACIA data   W: byte to vvp's stdout   R: last RX byte
+//             $8000 ACIA data   W: byte to stdout         R: last RX byte
 //             $8001 ACIA status bit0 = RX byte valid (cleared by reading $8000)
 //                               bit1 = TX ready (6850 TDRE; busy for
 //                                      ACIA_TX_CYCLES after each write)
 //             $8002 GPU data    W: byte to /tmp/bb6502_gpu (tools/gpu.c)
 //             $8003 GPU status  always $01 (ready)
+// 						 $8010 to 801D		 configurable timer (handled inside timer6502.v)
 //             $80E0-$80E3  disk LBA (32-bit LE)
 //             $80E4 disk CMD    1 = read sector into buffer, 2 = write buffer
 //             $80E5 disk STATUS bit7 = error, bit0 = busy
@@ -27,8 +28,9 @@
 //           regular file polled every 200 clocks; a FIFO here would block
 //           the simulation), /tmp/bb6502_gpu (GPU output stream, a FIFO).
 //
-// Built twice by rtl/rtl.mk: build/sim.vvp (normal) and build/sim_dbg.vvp
-// with -DBBDBG, which adds the debugger hooks near the end of this file.
+// Built by rtl/rtl.mk as build/sim/obj/Vtb (Verilator). The debugger is a Verilator
+// build of this file (rtl/dbg/dbg_main.cpp); it reads the dbg_* signals near the
+// end of this file, which are plain registers and do nothing in the design.
 // Run from the project root (file paths here are relative to it).
 // ============================================================================
 `timescale 1ns/1ps
@@ -36,7 +38,7 @@
 module tb;
   reg clk = 0;
   reg reset = 1;
-  always #5 clk = ~clk;
+  always #500 clk = ~clk;   // 1 MHz: period 1000 ns (matches CLK_HZ = 1_000_000)
 
   // CPU interface
   wire [15:0] AD;
@@ -66,8 +68,7 @@ module tb;
 
   // Register AD -> AB
   reg [15:0] AB;
-  always @(posedge clk)
-    if (RDY) AB <= AD;
+  always @(posedge clk) if (RDY) AB <= AD;
 
   // ---- MMU ----
   localparam PPN_W = 5;                  // 32 physical pages of 1 KB = 32KB
@@ -90,9 +91,34 @@ module tb;
     .faultb    (faultb)
   );
 
+  // ----- TIMER -----
+  // Base address at $8010, offsets as follows : -
+  //  ctl: 0
+  // 	st : 1
+  // 	config00 .. config 32 : 2 to 13
+  wire timer_rst_n = ~reset;
+  wire timer_cs = (AB >= 16'h8010 && AB <= 16'h801D);
+  wire timer_we = WE & RDY & ~reset;
+  wire [3:0] timer_addr = AB[3:0];
+  wire [7:0] timer_din = DO;
+  wire [7:0] timer_dout;
+  wire timer_irq_n;
+  timer6502 #( .CLK_HZ(1_000_000) ) timer (
+  	.clk  (clk),
+  	.rst_n(timer_rst_n),
+  	.cs   (timer_cs),
+  	.we   (timer_we),
+  	.addr (timer_addr),
+  	.din  (timer_din),
+  	.dout (timer_dout),
+  	.irq_n(timer_irq_n)
+  );
+
+  // Connect the timer's irq pin to the core's IRQ pin
+  always @(posedge clk) begin IRQ <= ~timer_irq_n; end	// Core's IRQ is level sensitive
+
   // Connect fault -> NMI (faultb is active low; Arlet's NMI is active high)
-  always @(posedge clk)
-    NMI <= ~faultb;	// NOTE: Arlet's nmi is POSEDGE triggered, so invert the active-low faultb
+  always @(posedge clk) NMI <= ~faultb;	// NOTE: Arlet's nmi is POSEDGE triggered, so invert the active-low faultb
 
   // ---- Memory ----
   reg [7:0] ram [0:32767];        // physical, 32KB
@@ -115,10 +141,8 @@ module tb;
   task automatic disk_do_read;
     integer i, n;
     begin
-      if (disk_fd == 0) begin
-        disk_err <= 1;
-      end else begin
-        // Seek to LBA * 512
+      if (disk_fd == 0) begin disk_err <= 1; end
+      else begin // Seek to LBA * 512
         $fseek(disk_fd, disk_lba * 512, 0);   // SEEK_SET = 0
         for (i = 0; i < 512; i = i + 1) begin
           n = $fgetc(disk_fd);
@@ -135,12 +159,10 @@ module tb;
   task automatic disk_do_write;
     integer i;
     begin
-      if (disk_fd == 0) begin
-        disk_err <= 1;
-      end else begin
+      if (disk_fd == 0) begin disk_err <= 1; end
+      else begin
         $fseek(disk_fd, disk_lba * 512, 0);
-        for (i = 0; i < 512; i = i + 1)
-          $fwrite(disk_fd, "%c", disk_buf[i]);
+        for (i = 0; i < 512; i = i + 1) $fwrite(disk_fd, "%c", disk_buf[i]);
         $fflush(disk_fd);
         disk_err <= 0;
       end
@@ -159,6 +181,7 @@ module tb;
   // Combinational read mux (async memory model)
   always @(*) begin
     if (AB[15] == 1'b0) DI = ram_q;                                   // translated by MMU
+    else if ((AB & 16'hFFF0) == 16'h8010) DI = timer_dout;						// timer's data out line
     else if ((AB & 16'hFFC0) == 16'h8080) DI = mmu_data_out;          // MMU control regs $8080-$80BF
     else if (AB == 16'h8000) DI = acia_rx_data;
     else if (AB == 16'h8001) DI = {6'b0, acia_tx_ready, acia_rx_valid};
@@ -203,11 +226,7 @@ module tb;
       if (AB[15] == 1'b0)
         ram[ram_paddr] <= DO;                       // translated
       else if (AB == 16'h8000)
-`ifdef BBDBG
-        $bbdbg_tx(DO);                              // debugger terminal pane
-`else
         $write("%c", DO);
-`endif
       else if (AB == 16'h8002) begin
         $fwrite(gpu_fd, "%c", DO);
         $fflush(gpu_fd);
@@ -230,8 +249,7 @@ module tb;
 
   // Auto increment the data pointer after any data access
   always @(posedge clk) begin
-    if (RDY & ~reset & (AB == 16'h80E6) && disk_dptr < 511)
-      disk_dptr <= disk_dptr + 1;
+  	if (RDY & ~reset & (AB == 16'h80E6) && disk_dptr < 511) disk_dptr <= disk_dptr + 1;
   end
 
   // Clear RX-valid after CPU reads data register
@@ -263,28 +281,28 @@ module tb;
   // ---- Optional: log faults so we can see when the MMU traps ----
   always @(posedge clk)
     if (~faultb)
-`ifdef BBDBG
-      $bbdbg_fault(AB, WE, ram_paddr);              // shown in the debugger console
-`else
       $display("[mmu] FAULT  AB=%04x  WE=%b  paddr=%05x",
                AB, WE, ram_paddr);
-`endif
 
-`ifdef BBDBG
-  // ---- Debugger hooks (only in sim_dbg.vvp, built with -DBBDBG) ----
-  // The debugger is a VPI module (rtl/dbg/) that gets control once per
-  // instruction. At the posedge that ends an opcode-fetch (sync) cycle we
-  // latch the opcode's address and value; at the following negedge the
-  // previous instruction's register write-back (done on that posedge) is
-  // visible, so $bbdbg_fetch sees a consistent "about to execute dbg_pc"
-  // state. While $bbdbg_fetch has not returned, simulation time is frozen.
+  // ---- Debugger hooks: plain signals, read by the C++ debugger harness ----
+  // (rtl/dbg/dbg_main.cpp). Nothing here affects the design.
+  //   dbg_fetch / dbg_pc / dbg_op   an instruction is about to execute at dbg_pc
+  //                                 (latched at the posedge that ends its sync cycle;
+  //                                 the harness reads them at the following negedge)
+  //   dbg_tx_strobe / dbg_tx_byte   the CPU wrote the ACIA data register ($8000)
+  //   dbg_fault_*                   the MMU raised a fault this cycle
+  //   dbg_reset_req                 the harness asks for a 16-cycle reset pulse
   reg  [15:0] dbg_pc    = 0;
   reg  [7:0]  dbg_op    = 0;
   reg         dbg_fetch = 0;
-  // Software reset requested by the debugger (written through VPI):
-  // hold `reset` for 16 cycles, like the power-on reset in the initial block.
   reg         dbg_reset_req = 0;
   integer     dbg_rst_cnt   = 0;
+  reg         dbg_tx_strobe = 0;
+  reg  [7:0]  dbg_tx_byte   = 0;
+  reg         dbg_fault_strobe = 0;
+  reg  [15:0] dbg_fault_addr  = 0;
+  reg         dbg_fault_we    = 0;
+  reg  [11+PPN_W:0] dbg_fault_paddr = 0;
 
   always @(posedge clk) begin
     dbg_fetch <= sync & RDY & ~reset & ~dbg_reset_req & (dbg_rst_cnt == 0);
@@ -292,10 +310,13 @@ module tb;
       dbg_pc <= AB;
       dbg_op <= DI;
     end
+    dbg_tx_strobe    <= WE & RDY & ~reset & (AB == 16'h8000);
+    dbg_tx_byte      <= DO;
+    dbg_fault_strobe <= ~faultb;
+    dbg_fault_addr   <= AB;
+    dbg_fault_we     <= WE;
+    dbg_fault_paddr  <= ram_paddr;
   end
-
-  always @(negedge clk)
-    if (dbg_fetch) $bbdbg_fetch(dbg_pc, dbg_op);
 
   always @(posedge clk) begin
     if (dbg_reset_req) begin
@@ -308,7 +329,6 @@ module tb;
     end else if (dbg_rst_cnt > 1)
       dbg_rst_cnt   <= dbg_rst_cnt - 1;
   end
-`endif
 
   initial begin
   	// Traces

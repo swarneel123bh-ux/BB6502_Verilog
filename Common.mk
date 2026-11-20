@@ -5,8 +5,7 @@ BUILD_DIR  := $(ROOT)/build
 DISK_DIR   := $(ROOT)/disk
 TOOLS_DIR  := $(ROOT)/tools
 
-IVERILOG   := iverilog
-VVP        := vvp
+VERILATOR := verilator
 CC65       := cc65
 CA65       := ca65
 LD65       := ld65
@@ -41,10 +40,11 @@ PROG_LBA  := 200
 PROG2_LBA := 210
 PROG3_LBA := 220
 
-SIM_VVP      := $(BUILD_DIR)/sim.vvp
-# Debugger build: the same RTL built with -DBBDBG, and the debugger VPI module
-SIM_DBG_VVP  := $(BUILD_DIR)/sim_dbg.vvp
-DBG_VPI      := $(BUILD_DIR)/bbdbg.vpi
+# Simulator (paced to the wall clock) and debugger: Verilator builds of the same RTL
+SIM_BIN      := $(BUILD_DIR)/sim/obj/Vtb
+# Debugger: a Verilator build of the same RTL with the ncurses debugger linked in
+DBG_BIN      := $(BUILD_DIR)/dbgsim/obj/Vtb
+DBG_OBJ      := $(BUILD_DIR)/dbg/debugger.o
 GPU_BIN      := $(BUILD_DIR)/gpu
 KERNEL_BBX   := $(BUILD_DIR)/kernel.bbx
 BOOT_BIN     := $(BUILD_DIR)/bootrom.bin

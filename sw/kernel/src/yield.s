@@ -10,6 +10,11 @@
 .import _plist
 .import _plist_idx
 .import _schedule_process
+
+.export save_process
+.export restore_process
+.export calc_proc_ptr
+
 ; .import yield_rti
 .include "include/devices.s"
 .include "include/zp.s"
@@ -28,6 +33,26 @@ PROC_SIZE_SHIFT     = 6     ; sizeof(PROCESS) = 1 << 6 = 64
 
 ; yield_rti address, so that we can simply jump (is in ROM)
 yield_rti = $FFF8
+
+; ----------------------------------------------------------------
+; SAVE_PPN: copy ppn_table[0..31] of MMU to *ZP_CURR_PROC_PTR.
+; A macro, not a subroutine: it runs after TXS has switched SP to the
+; next process, and a JSR there would push onto the kernel's physical
+; stack page at that process's SP. Clobbers A, X, Y.
+; ----------------------------------------------------------------
+.macro SAVE_PPN
+				.local loop
+				ldy #PROC_OFF_PPN0
+				ldx #0
+loop:
+				lda MMU_PPN0,x
+				sta (ZP_CURR_PROC_PTR),y
+				iny
+				inx
+				cpx #MMU_NPAGES
+				bne loop
+.endmacro
+
 
 ; ----------------------------------------------------------------
 ; RESTORE_PPN: copy ppn_table[0..31] of *ZP_CURR_PROC_PTR into the MMU.
@@ -51,6 +76,25 @@ loop:
 .segment "CODE"
 .export do_yield
 
+
+save_process:
+				tsx	; save current SP at offset 13
+				inx
+				inx
+				txa
+				ldy #PROC_OFF_SP
+				sta (ZP_CURR_PROC_PTR),y
+				SAVE_PPN
+				rts
+
+restore_process:
+				ldy #PROC_OFF_SP ; load saved SP into X
+				lda (ZP_CURR_PROC_PTR),y
+				tax
+				txs
+				RESTORE_PPN		; restore PPN table (offsets 14..45)
+				jmp (RET_USER_MODE)
+
 ; ================================================================
 ; do_yield
 ; Entered from brk_handler when syscall number == 0 (SYS_YIELD).
@@ -72,22 +116,7 @@ do_yield:
   lda #PROC_STATE_WAITING
   sta (ZP_CURR_PROC_PTR),y
 
-  ; save current SP at offset 13
-  tsx
-  txa
-  ldy #PROC_OFF_SP
-  sta (ZP_CURR_PROC_PTR),y
-
-  ; save PPN table at offsets 14..45
-  ldy #PROC_OFF_PPN0
-  ldx #0
-@save_ppn:
-  lda MMU_PPN0,x
-  sta (ZP_CURR_PROC_PTR),y
-  iny
-  inx
-  cpx #MMU_NPAGES
-  bne @save_ppn
+  jsr save_process
 
   ; --- pick next process (updates _plist_idx) ---
   jsr _schedule_process
@@ -100,15 +129,7 @@ do_yield:
   lda #PROC_STATE_RUNNING
   sta (ZP_CURR_PROC_PTR),y
 
-  ; load saved SP into X
-  ldy #PROC_OFF_SP
-  lda (ZP_CURR_PROC_PTR),y
-  tax
-  txs
-
-  ; restore PPN table (offsets 14..45)
-  RESTORE_PPN
-  jmp (RET_USER_MODE)
+  jmp restore_process
 
 
 ; ----------------------------------------------------------------

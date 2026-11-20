@@ -13,14 +13,14 @@ A 65C02 computer simulated at the hardware level, with its own operating system 
   - three demo processes that run side by side, one of which tests disk access through syscalls
 - **Tools:**
   - an SDL "monitor" window
-  - an **ncurses debugger** that runs inside the simulator as a VPI module and controls the real RTL CPU: breakpoints, stepping, registers, MMU-aware memory dumps, 65C02 disassembly
+  - an **ncurses debugger** that runs inside the simulator (a Verilator build) and controls the real RTL CPU: breakpoints, stepping, registers, MMU-aware memory dumps, 65C02 disassembly
 
 ```
- ┌─────────────── vvp (Icarus Verilog) ───────────────┐      ┌──────────────┐
+ ┌─────────────── Verilator simulator (1 MHz) ────────┐      ┌──────────────┐
  │  65C02 core ── MMU ── RAM 32K / ROM 32K            │◄────►│ gpu (SDL)    │
  │       │                                            │ FIFO │ monitor +    │
  │       └── I/O: ACIA · GPU stream · disk controller │      │ keyboard     │
- │                         (debug build: bbdbg.vpi)   │      └──────────────┘
+ │                         (debug build: dbgsim/Vtb)  │      └──────────────┘
  └──────────────────────────┬─────────────────────────┘
                             └── build/disk.img: boot record · kernel.bbx · programs
 ```
@@ -69,6 +69,7 @@ make run-dbg
 | [docs/processes.md](docs/processes.md) | Process table, loader, scheduler, context switch |
 | [docs/build-system.md](docs/build-system.md) | Makefiles, linker configs, how the disk image is made |
 | [docs/debugger.md](docs/debugger.md) | Using the debugger and how it is wired into the simulation |
+| [docs/timers.md](docs/timers.md) | The four interval timers: registers, periods, interrupts, setup macros |
 
 ## Credits
 
