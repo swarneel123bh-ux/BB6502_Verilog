@@ -6,7 +6,7 @@
 |---|---|
 | `Makefile` | Entry point: `all`, `run`, `debug`, `run-dbg`, `clean`, and the disk image |
 | `common.mk` | Shared settings: tool names, flags, disk LBAs, output file names. Included by every makefile. |
-| `rtl/rtl.mk` | `sim` → `build/sim.vvp`, `gpu` → `build/gpu`, `dbg` → `build/sim_dbg.vvp` + `build/bbdbg.vpi` |
+| `rtl/rtl.mk` | `sim` → `build/sim/obj/Vtb`, `gpu` → `build/gpu`, `dbg` → `build/dbgsim/obj/Vtb` (all Verilator) |
 | `sw/kernel/kernel.mk` | Kernel → `build/kernel.bbx`, boot ROM → `build/bootrom.bin/.hex`, boot record → `build/bootrec.bin` |
 | `sw/prog/prog.mk` | User programs → `build/hello.bbx`, `build/hello2.bbx`, `build/disktest.bbx` |
 
@@ -23,9 +23,9 @@ sw/prog/src/*.c,*.s ─cc65/ca65─► prog_*.o ─ld65 prog.cfg─► hello.bbx
 
 dd 1.44 MB zeros ─mformat -F─► FAT32 ─mcopy disk/*─► ─dd bootrec @100, kernel @101, hello @200, hello2 @210, disktest @220─► disk.img
 
-rtl/verilog-65C02-microcode/generic/*.v + rtl/tb.v + rtl/mmu6502.v ─iverilog─► sim.vvp
-                                              same + -DBBDBG ─iverilog─► sim_dbg.vvp
-rtl/dbg/*.c ─iverilog-vpi (-lncurses)─► bbdbg.vpi
+rtl/verilog-65C02-microcode/generic/*.v + rtl/tb.v + rtl/mmu6502.v ─verilator─► build/sim/obj/Vtb   (tools/fastsim/main.cpp, paced)
+                                              same ─verilator --public-flat-rw─► build/dbgsim/obj/Vtb   (rtl/dbg/dbg_main.cpp + debugger.o)
+rtl/dbg/debugger.c ─cc─► build/dbg/debugger.o (-lncurses)
 tools/gpu.c ─cc (SDL2, SDL2_ttf)─► gpu
 ```
 
@@ -67,7 +67,7 @@ The boot ROM hardcodes LBA 100 (`BOOT_REC_LBA` in `boot.s`). The program LBAs ar
 ## Gotchas
 
 - Object rules don't depend on `common.mk`. After changing a flag, run `make clean`.
-- `vvp` must be started from the project root: `tb.v` and `microcode.v` open files by relative path.
+- The simulator must be started from the project root: `tb.v` and `microcode.v` open files by relative path. The Makefile does this.
 - `make run`, `make run-dbg` and `make gpu` create the FIFO `/tmp/bb6502_gpu` if it doesn't exist. They also recreate `/tmp/bb6502_in` as an empty **regular file** every time; a FIFO there would freeze the simulation, see [hardware.md](hardware.md#acia-serial-port).
-- The whole build takes under a second. The read multiplexer in `tb.v` reads RAM, ROM and the disk buffer through continuous assignments (`ram_q`, `rom_q`, `dbuf_q`), and `mmu6502.v` does the same for its page table (`ppn_rd`). Indexing the arrays directly inside `always @(*)` makes Icarus expand the block's sensitivity list to every array word (~65,000). That made `iverilog` take about 15 s per build and slowed the simulation down.
+- The whole build takes under a second. The read multiplexer in `tb.v` reads RAM, ROM and the disk buffer through continuous assignments (`ram_q`, `rom_q`, `dbuf_q`), and `mmu6502.v` does the same for its page table (`ppn_rd`). Keep that style: it keeps the Verilator build fast.
 - `kernel.cfg` declares a `VECTORS` segment that nothing defines; ld65 warns and it's harmless.

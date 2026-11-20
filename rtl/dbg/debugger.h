@@ -3,15 +3,15 @@
 //
 // The debugger is the project author's ncurses debugger from the old
 // fake6502-based emulator (BB6502 repo, emulator/src/include/debugger.h).
-// See debugger.c for the list of changes made to run it as a VPI module
+// See debugger.c for the list of changes made to run it in a Verilator build
 // against the Verilog system. Changes in this header:
 //   - command_t: added CMD_RESET.
 //   - runmode_t: new; the simulator now drives the debugger (see debugger.c).
 //   - signal_t:  removed; it described the old IXFLAGREG protocol.
 //   - addrmode_t + optable: extended from NMOS 6502 to the full WDC 65C02
 //     instruction set, since the kernel is compiled with --cpu 65c02.
-//   - Added the simulation interface (implemented in bbdbg_vpi.c) and the
-//     entry points the VPI glue calls.
+//   - Added the simulation interface (implemented in dbg_main.cpp) and the
+//     entry points the simulation harness calls.
 // ============================================================================
 #pragma once
 
@@ -189,7 +189,7 @@ typedef struct {
 } dbg_symbol_t;
 
 
-// ─── Simulation interface (implemented in bbdbg_vpi.c) ───────────────────────
+// ─── Simulation interface (implemented in dbg_main.cpp) ──────────────────────
 // This replaces the old dbgMEM6502 array and the fake6502 globals: all machine
 // state is read live from the Verilog model.
 
@@ -210,7 +210,7 @@ extern void simRequestReset(void);          // pulse the testbench reset line
 extern void simFinish(void);                // end the simulation ($finish)
 
 
-// ─── Debugger entry points (called from bbdbg_vpi.c) ─────────────────────────
+// ─── Debugger entry points (called from dbg_main.cpp) ────────────────────────
 // Set up the UI and load symbol files; called once before time 0.
 extern bool dbgInit(int nsymfiles, char **symfiles, const char *srcfile);
 extern void dbgCleanup(void);

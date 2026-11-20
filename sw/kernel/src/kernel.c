@@ -1,7 +1,7 @@
 // ==========================================================================
 // kernel.c — kernel console output
 //
-// Every string goes to both the ACIA (vvp's terminal / debugger pane) and
+// Every string goes to both the ACIA (the simulator's terminal / debugger pane) and
 // the GPU stream (SDL window).
 //
 // Status bits: ACIA bit 1 = TX ready (bit 0 is RX valid); GPU bit 0 = ready.

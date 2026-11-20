@@ -1,8 +1,8 @@
 # Debugger
 
-An ncurses debugger that runs **inside the Verilog simulation**. It stops the real Arlet 65C02 RTL at instruction boundaries. You can set breakpoints, step, look at registers and MMU state, dump memory the way the CPU sees it, and disassemble 65C02 code, while the MMU, disk, ACIA, GPU stream and the SDL monitor keep behaving exactly as in a normal run.
+An ncurses debugger that runs **inside the simulation**, a Verilator build of the same RTL. It stops the real Arlet 65C02 RTL at instruction boundaries. You can set breakpoints, step, look at registers and MMU state, dump memory the way the CPU sees it, and disassemble 65C02 code, while the MMU, disk, ACIA, GPU stream and the SDL monitor keep behaving exactly as in a normal run.
 
-The debugger (commands, UI, breakpoints, disassembler, symbol loader) is the BB6502 author's debugger from the earlier fake6502-based emulator. It was ported to the Verilog system as a VPI module; the changes are listed at the top of `rtl/dbg/debugger.c`.
+The debugger (commands, UI, breakpoints, disassembler, symbol loader) is the BB6502 author's debugger from the earlier fake6502-based emulator. It is linked into a Verilator build of `rtl/tb.v`; the changes are listed at the top of `rtl/dbg/debugger.c`.
 
 ## Running
 
@@ -10,13 +10,13 @@ The debugger (commands, UI, breakpoints, disassembler, symbol loader) is the BB6
 make run-dbg
 ```
 
-This builds everything plus `build/sim_dbg.vvp` and `build/bbdbg.vpi`, starts the SDL monitor, and runs:
+This builds the kernel and programs, the debugger binary `build/dbgsim/obj/Vtb` (Verilator), and the SDL monitor, then runs:
 
 ```bash
-vvp -M build -m bbdbg build/sim_dbg.vvp +dbg_sym=build/boot.dbg +dbg_sym=build/kernel.dbg +dbg_sym=build/hello.dbg > build/sim_dbg.log
+build/dbgsim/obj/Vtb +dbg_sym=build/boot.dbg +dbg_sym=build/kernel.dbg +dbg_sym=build/hello.dbg > build/sim_dbg.log
 ```
 
-The debugger draws on your terminal (`/dev/tty`), and vvp's own messages go to `build/sim_dbg.log`. To load more symbol files or pick a source file:
+The debugger draws on your terminal (`/dev/tty`), and the simulator's own text (the ACIA output) goes to `build/sim_dbg.log`. To load more symbol files or pick a source file:
 
 ```bash
 make run-dbg DBG_ARGS="+dbg_sym=build/disktest.dbg"
@@ -88,23 +88,25 @@ The BB6502 software doesn't execute `STP` yet. Making `sys_exit` end with `STP` 
 ## How it works
 
 ```
-rtl/tb.v (built with -DBBDBG)                rtl/dbg/bbdbg_vpi.c          rtl/dbg/debugger.c
-──────────────────────────────               ───────────────────          ──────────────────
+rtl/tb.v (plain signals, no system tasks)     rtl/dbg/dbg_main.cpp              rtl/dbg/debugger.c
+─────────────────────────────────────────     ────────────────────              ──────────────────
 posedge: sync → latch dbg_pc, dbg_op
-negedge: $bbdbg_fetch(dbg_pc, dbg_op) ──────► fetchCalltf ───────────────► dbgOnFetch
-                                                                           stop? → command loop
-                                                                           (sim time frozen
-                                                                            until you resume)
-ACIA write: $bbdbg_tx(DO) ──────────────────► txCalltf ──────────────────► dbgOnTx → terminal pane
-MMU fault:  $bbdbg_fault(AB, WE, paddr) ────► faultCalltf ───────────────► dbgOnFault
-reg dbg_reset_req ◄── vpi_put_value ◄──────── simRequestReset ◄─────────── `reset`, STP restart
-tb.ram, tb.rom, tb.dut.regfile.regs, ◄─────── simReadMem, simGetRegs ◄──── m, d, r
+negedge: dbg_fetch ───────────────────────────► read dbg_pc, dbg_op ─────────► dbgOnFetch
+                                                                               stop? → command loop
+                                                                               (sim time frozen
+                                                                                until you resume)
+posedge: dbg_tx_strobe, dbg_tx_byte ──────────► dbgOnTx ───────────────────────► terminal pane
+posedge: dbg_fault_strobe, dbg_fault_* ───────► dbgOnFault
+dbg_reset_req ◄───────────────────────────────── simRequestReset ◄──────────────── `reset`, STP restart
+tb.ram, tb.rom, tb.dut.regfile.regs, ◄────────── simReadMem, simGetRegs ◄──────── m, d, r
 tb.dut.P, tb.mmu.kernel, tb.mmu.ppn
 ```
 
-- **The normal build is unaffected.** Everything in `tb.v` is under `` `ifdef BBDBG `` (the normal build keeps `$write` for the ACIA and `$display` for faults), so `build/sim.vvp` is logically identical to a build without the debugger.
-- **Pausing freezes the whole machine.** The debugger stops by not returning from `$bbdbg_fetch`. Nothing in the simulation advances while you're at the prompt, devices included. The SDL monitor is a separate process, so it stays responsive and keeps showing the last output.
-- **Ctrl-C arrives as a key.** ncurses is opened with `newterm` on `/dev/tty` in raw mode, so Ctrl-C reaches the debugger as a key press instead of a signal that would stop vvp. While running, the terminal is polled every 512 instructions.
+The main loop in `dbg_main.cpp` advances the Verilator model half a clock at a time. The testbench's signals are read through Verilator's public accessors (`--public-flat-rw`).
+
+- **The debugger is a separate build.** `tb.v` has no `ifdef`s, and the `dbg_*` signals are plain registers that do nothing in the design. The simulator (`make run`) and the debugger are both Verilator builds of the same `tb.v`.
+- **Pausing freezes the whole machine.** The main loop only moves on when the debugger returns from `dbgOnFetch`. Nothing in the simulation advances while you're at the prompt, devices included. The SDL monitor is a separate process, so it stays responsive and keeps showing the last output.
+- **Ctrl-C arrives as a key.** ncurses is opened with `newterm` on `/dev/tty` in raw mode, so Ctrl-C reaches the debugger as a key press instead of a signal that would stop the simulation. While running, the terminal is polled every 512 instructions.
 
 ## Limitations
 
@@ -112,4 +114,4 @@ tb.dut.P, tb.mmu.kernel, tb.mmu.ppn
 - **No memory or register writes.**
 - **The source pane is empty** (`+dbg_src=` / `ld` are placeholders, as `-s` / `ld` were in the original debugger).
 - **The SDL window only updates when the CPU writes to the GPU port.** While stopped, it shows the last output.
-- **Debug runs can be slower** than `make run`, because the testbench calls into the VPI module once per instruction.
+- **Debug runs are paced by the debugger**, not by the wall clock: the simulation runs as fast as it can, and it stops at each breakpoint or step.

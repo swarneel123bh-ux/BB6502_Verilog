@@ -5,7 +5,7 @@
 ```
               host processes                              files
  ┌──────────────────────────────────────────┐
- │ vvp build/sim.vvp  (or sim_dbg.vvp)      │
+ │ build/sim/obj/Vtb  (or build/dbgsim/obj/Vtb)│
  │  ┌──────── tb.v: the machine ─────────┐  │   build/bootrom.hex  (ROM contents)
  │  │ cpu (Arlet 65C02)                  │  │   build/disk.img     (the disk)
  │  │  │ AB/DI/DO/WE   ┌── mmu6502 ──┐   │  │
@@ -14,7 +14,7 @@
  │  │  ├──► ROM 32K    └─────────────┘   │  │
  │  │  └──► I/O: ACIA  GPU  disk  MMU-regs│  │
  │  └──────────┬────────┬──────────────────┘  │
- │   stdout ◄──┘        │   (debug build: bbdbg.vpi ncurses debugger)
+ │   stdout ◄──┘        │   (debug build: dbgsim/Vtb ncurses debugger)
  └──────────────────────┼─────────────────────┘
                         │ /tmp/bb6502_gpu  (bytes → screen)
                         │ /tmp/bb6502_in   (keys → ACIA RX)
@@ -27,7 +27,7 @@
 - **`rtl/mmu6502.v`** is the memory management unit. See [hardware.md](hardware.md#mmu).
 - **`rtl/verilog-65C02-microcode/`** is Arlet Ottens' 65C02 core, as a git submodule pointing at the project's fork.
 - **`tools/gpu.c`** runs as a separate process. It draws whatever the CPU writes to the GPU port and sends key presses back.
-- **`rtl/dbg/`** holds the debugger, a VPI module loaded into `vvp` by `make run-dbg`. See [debugger.md](debugger.md).
+- **`rtl/dbg/`** holds the debugger: `debugger.c` (ncurses UI) and `dbg_main.cpp` (the glue to the Verilator model). `make run-dbg` runs it. See [debugger.md](debugger.md).
 
 ## Boot sequence
 
@@ -69,8 +69,8 @@ Makefile, common.mk     top-level build (see build-system.md)
 rtl/
   tb.v                  the machine
   mmu6502.v             MMU
-  rtl.mk                builds sim.vvp, sim_dbg.vvp, bbdbg.vpi, gpu
-  dbg/                  debugger (VPI module)
+  rtl.mk                builds the sim and debugger (Verilator), gpu
+  dbg/                  debugger (ncurses UI and Verilator glue)
   verilog-65C02-microcode/   CPU core (submodule, branch bb6502 of the fork)
 sw/
   boot/                 boot ROM: boot.s, boot.cfg, devices.s

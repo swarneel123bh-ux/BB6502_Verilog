@@ -1,10 +1,12 @@
 # Destination: ./Makefile  (project root — this is the file you run)
 #
 # Targets:
-#   make            build everything: sim.vvp, gpu, boot ROM, kernel, programs,
-#                   build/disk.img
-#   make run        build, then start the SDL monitor (gpu) and the simulation
-#   make debug      also build the debugger (sim_dbg.vvp + bbdbg.vpi)
+#   make            build everything: sim, gpu, boot ROM, kernel, programs,
+#                   build/disk.img  (sim and debugger are Verilator builds)
+#   make run        build, then start the SDL monitor (gpu) and the simulation,
+#                   paced to the wall clock (1 MHz)
+#   make run-fast   like run, but flat out (as fast as the host allows)
+#   make debug      also build the debugger (build/dbgsim/obj/Vtb)
 #   make run-dbg    like run, but the simulation runs under the debugger in
 #                   this terminal (see docs/debugger.md)
 #   make clean      remove build/
@@ -13,16 +15,16 @@
 ROOT := .
 include $(ROOT)/common.mk
 
-.PHONY: all rtl kernel prog syslib run gpu debug run-dbg clean
+.PHONY: all rtl kernel prog syslib run run-fast gpu debug run-dbg clean
 
 all: rtl kernel prog $(DISK_IMG)
 
 rtl:
 	$(MAKE) -C rtl -f rtl.mk
 
-# Debugger build: everything `all` builds, plus sim_dbg.vvp and bbdbg.vpi
-debug: all
-	$(MAKE) -C rtl -f rtl.mk dbg
+# Debugger build: everything `all` builds, plus the Verilator debugger binary
+debug: kernel prog $(DISK_IMG)
+	$(MAKE) -C rtl -f rtl.mk dbg gpu
 
 # Symbol files the debugger loads; add more with DBG_ARGS=+dbg_sym=<file>
 DBG_SYMS := +dbg_sym=$(BOOT_DBG) +dbg_sym=$(KERNEL_DBG) +dbg_sym=$(PROG_DBG)
@@ -72,23 +74,31 @@ run: all
 	@echo "Starting BB6502. Close the SDL window or press Ctrl-C to exit."
 	@$(GPU_BIN) & GPU_PID=$$!; \
 	 sleep 0.3; \
-	 $(VVP) $(SIM_VVP) & VVP_PID=$$!; \
-	 trap "kill $$GPU_PID $$VVP_PID 2>/dev/null; exit 0" EXIT INT TERM; \
-	 wait $$GPU_PID; \
-	 kill $$VVP_PID 2>/dev/null; \
-	 wait $$VVP_PID 2>/dev/null; true
+	 trap "kill $$GPU_PID 2>/dev/null; exit 0" EXIT INT TERM; \
+	 $(SIM_BIN); \
+	 kill $$GPU_PID 2>/dev/null; true
+
+# Flat out: the same simulation without the wall-clock pacing
+run-fast: all
+	@mkfifo /tmp/bb6502_gpu 2>/dev/null || true
+	@$(MAKE_INPUT_FILE)
+	@$(GPU_BIN) & GPU_PID=$$!; \
+	 sleep 0.3; \
+	 trap "kill $$GPU_PID 2>/dev/null; exit 0" EXIT INT TERM; \
+	 $(SIM_BIN) -fast; \
+	 kill $$GPU_PID 2>/dev/null; true
 
 # Same as `run`, but the simulation runs under the debugger in this terminal.
-# vvp's own output goes to $(DBG_LOG); the debugger draws on /dev/tty.
+# The simulator's own output goes to $(DBG_LOG); the debugger draws on /dev/tty.
 run-dbg: debug
 	@mkfifo /tmp/bb6502_gpu 2>/dev/null || true
 	@$(MAKE_INPUT_FILE)
 	@$(GPU_BIN) & GPU_PID=$$!; \
 	 sleep 0.3; \
 	 trap "kill $$GPU_PID 2>/dev/null" EXIT INT TERM; \
-	 $(VVP) -M $(BUILD_DIR) -m bbdbg $(SIM_DBG_VVP) $(DBG_SYMS) $(DBG_ARGS) > $(DBG_LOG) 2>&1; \
+	 $(DBG_BIN) $(DBG_SYMS) $(DBG_ARGS) > $(DBG_LOG) 2>&1; \
 	 kill $$GPU_PID 2>/dev/null; \
-	 echo "Simulation ended. vvp log: $(DBG_LOG)"; true
+	 echo "Simulation ended. Log: $(DBG_LOG)"; true
 
 $(BUILD_DIR):
 	mkdir -p $@

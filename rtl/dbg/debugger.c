@@ -1,5 +1,5 @@
 // ============================================================================
-// debugger.c — BB6502 ncurses debugger, running as a VPI module inside vvp
+// debugger.c — BB6502 ncurses debugger, linked into a Verilator build of tb.v
 //
 // The debugger itself — command set and aliases, the three-pane ncurses UI,
 // breakpoints, the disassembler, memory/register views and the ld65 debug
@@ -16,15 +16,15 @@
 //     the user resumes. dbgMainLoop/dbgRunProgCont/dbgStep6502 became the
 //     runmode_t state machine (DBG_STOPPED / DBG_STEPPING / DBG_RUNNING).
 //   * Memory and registers come from the Verilog model through the sim*
-//     functions in bbdbg_vpi.c (MMU-translated RAM, boot ROM, Arlet's register
+//     functions in dbg_main.cpp (MMU-translated RAM, boot ROM, Arlet's register
 //     file). The private dbgMEM6502 array, read6502/write6502, ROM loading,
 //     IXFLAGREG/UART/floppy servicing, dbgReset and command-line parsing were
-//     removed (arguments arrive as vvp plusargs, see bbdbg_vpi.c).
+//     removed (arguments arrive as +dbg_sym= plusargs, see dbg_main.cpp).
 //   * The I/O window $8000-$80FF is shown as ".." in memory dumps.
-//   * Terminal pane: shows what the CPU writes to the ACIA ($bbdbg_tx); keys
+//   * Terminal pane: shows what the CPU writes to the ACIA (dbgOnTx); keys
 //     typed into it are appended to /tmp/bb6502_in, exactly like tools/gpu.c
 //     does, so they reach the ACIA RX path.
-//   * ncurses runs on /dev/tty (newterm) because vvp's stdout is redirected to
+//   * ncurses runs on /dev/tty (newterm) because the simulator's stdout is redirected to
 //     a log file, and in raw() mode so Ctrl-C arrives as a key (0x03) instead
 //     of SIGINT. The SIGINT handlers were removed (they called ncurses from a
 //     signal handler, which is unsafe).
@@ -177,7 +177,7 @@ void dbgCleanup(void) {
   return;
 }
 
-// Called by the testbench (via bbdbg_vpi.c) right before the instruction at
+// Called by the simulation harness (dbg_main.cpp) right before the instruction at
 // `pc` executes. Returning lets the simulation run on; stopping means running
 // the command loop here until the user resumes.
 void dbgOnFetch(uint16_t pc, uint8_t opcode) {
@@ -1037,7 +1037,7 @@ static command_t dbgParseCommand(const char *cmd) {
 // Layout (unchanged): terminal pane top-left, source pane top-right,
 // debugger console across the bottom half.
 static bool dbgInitDisplay(void) {
-  // vvp's stdout/stderr go to a log file, so talk to the terminal directly
+  // The simulator's stdout/stderr go to a log file, so talk to the terminal directly
   dbgTtyOut = fopen("/dev/tty", "w");
   dbgTtyIn = fopen("/dev/tty", "r");
   if (!dbgTtyOut || !dbgTtyIn) {

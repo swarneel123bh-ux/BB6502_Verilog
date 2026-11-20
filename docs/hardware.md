@@ -14,7 +14,7 @@ All of this is in `rtl/tb.v` unless noted otherwise. Addresses are CPU addresses
 | `AB` | Read | Write |
 |---|---|---|
 | `$0000-$7FFF` | `ram[mmu paddr]` | `ram[mmu paddr]` |
-| `$8000` | `acia_rx_data` | Byte printed on vvp's stdout (debug build: the debugger's terminal pane) |
+| `$8000` | `acia_rx_data` | Byte printed on the simulator's stdout (debug build: the debugger's terminal pane) |
 | `$8001` | `{6'b0, acia_tx_ready, acia_rx_valid}` | — |
 | `$8002` | — | Byte written to `/tmp/bb6502_gpu` |
 | `$8003` | `$01` (always ready) | — |
@@ -103,4 +103,4 @@ Rules:
 | `/tmp/bb6502_in` | `r` | Keyboard input (regular file) |
 | `/tmp/bb6502_gpu` | `w` | GPU output (FIFO; `gpu` reads the other end) |
 
-The `build/` and `rtl/` paths are relative, so `vvp` must run from the project root; the Makefile does this.
+The `build/` and `rtl/` paths are relative, so the simulator must run from the project root; the Makefile does this.

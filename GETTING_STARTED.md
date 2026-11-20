@@ -32,7 +32,7 @@ brew install icarus-verilog cc65 sdl2 sdl2_ttf mtools pkg-config
 
 | Tool | Why it's needed |
 |---|---|
-| `icarus-verilog` | `iverilog` compiles the hardware description; `vvp` runs it; `iverilog-vpi` builds the debugger |
+| `verilator` | Compiles the hardware description into the simulator and the debugger (version 5 or later) |
 | `cc65` | C compiler (`cc65`), assembler (`ca65`) and linker (`ld65`) for the 6502 |
 | `sdl2`, `sdl2_ttf` | The monitor window and its font rendering |
 | `mtools` | `mformat`/`mcopy`, which create the FAT-formatted disk image |
@@ -41,7 +41,7 @@ brew install icarus-verilog cc65 sdl2 sdl2_ttf mtools pkg-config
 Check that everything is there. Each command should print a version or a path:
 
 ```bash
-iverilog -V 2>&1 | head -1; cc65 --version; sdl2-config --version; which mformat
+verilator --version; cc65 --version; sdl2-config --version; which mformat
 ```
 
 ---
@@ -76,7 +76,7 @@ You can check the CPU core is present: `ls rtl/verilog-65C02-microcode/generic` 
 make
 ```
 
-This compiles the hardware (`build/sim.vvp`), the monitor window (`build/gpu`), the boot ROM, the kernel and the demo programs. It then packs everything into a disk image (`build/disk.img`). It takes about a second.
+This compiles the hardware (`build/sim/obj/Vtb`, Verilator), the monitor window (`build/gpu`), the boot ROM, the kernel and the demo programs. It then packs everything into a disk image (`build/disk.img`). It takes about a second.
 
 The output includes some warnings. These are expected and harmless:
 - `no explicit time unit` (Verilog)
@@ -245,9 +245,9 @@ You should now see `count` interleaved with `hello` and `hello2`, in place of th
 
 | Symptom | Fix |
 |---|---|
-| `make: iverilog: No such file or directory` (or `cc65`, `mformat`) | Step 1.3 didn't finish. Re-run the `brew install` line. |
+| `make: verilator: No such file or directory` (or `cc65`, `mformat`) | Step 1.3 didn't finish. Re-run the `brew install` line. |
 | `rtl/verilog-65C02-microcode/generic/*.v: No such file` | The CPU core submodule is missing: `git submodule update --init`. |
-| The window opens but stays black, or the simulation seems frozen | Make sure `/tmp/bb6502_in` is a regular file, not a FIFO (`ls -l /tmp/bb6502_in` must not start with `p`). `make run` recreates it correctly; if you start `vvp` by hand, run `rm -f /tmp/bb6502_in && touch /tmp/bb6502_in` first. |
+| The window opens but stays black, or the simulation seems frozen | Make sure `/tmp/bb6502_in` is a regular file, not a FIFO (`ls -l /tmp/bb6502_in` must not start with `p`). `make run` recreates it correctly; if you start the simulator by hand, run `rm -f /tmp/bb6502_in && touch /tmp/bb6502_in` first. |
 | `[acia] TX overrun` lines | Code wrote `$8000` without waiting for TX ready (bit 1 of `$8001`). See [docs/hardware.md](docs/hardware.md#acia-serial-port). |
 | `TTF_OpenFont(...)` error | The default font is macOS's Menlo. Start the window yourself with a font path: `build/gpu /path/to/font.ttf`. |
 | `[tb] FIFO open failed` | Stale files in `/tmp`: `rm -f /tmp/bb6502_gpu /tmp/bb6502_in`, then run again. |
@@ -261,7 +261,7 @@ You should now see `count` interleaved with `hello` and `hello2`, in place of th
 Package names on Debian/Ubuntu:
 
 ```bash
-sudo apt install iverilog cc65 libsdl2-dev libsdl2-ttf-dev mtools pkg-config libncurses-dev python3 bsdextrautils
+sudo apt install verilator cc65 libsdl2-dev libsdl2-ttf-dev mtools pkg-config libncurses-dev python3 bsdextrautils
 ```
 
 `bsdextrautils` provides `hexdump`. Start the monitor with a font that exists on your system: edit the `$(GPU_BIN)` lines in the root `Makefile` to pass a `.ttf` path. This path is untested.
