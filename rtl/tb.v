@@ -16,6 +16,7 @@
 //                                      ACIA_TX_CYCLES after each write)
 //             $8002 GPU data    W: byte to /tmp/bb6502_gpu (tools/gpu.c)
 //             $8003 GPU status  always $01 (ready)
+// 						 $8010 to 801D		 configurable timer (handled inside timer6502.v)
 //             $80E0-$80E3  disk LBA (32-bit LE)
 //             $80E4 disk CMD    1 = read sector into buffer, 2 = write buffer
 //             $80E5 disk STATUS bit7 = error, bit0 = busy
@@ -66,8 +67,7 @@ module tb;
 
   // Register AD -> AB
   reg [15:0] AB;
-  always @(posedge clk)
-    if (RDY) AB <= AD;
+  always @(posedge clk) if (RDY) AB <= AD;
 
   // ---- MMU ----
   localparam PPN_W = 5;                  // 32 physical pages of 1 KB = 32KB
@@ -90,9 +90,34 @@ module tb;
     .faultb    (faultb)
   );
 
+  // ----- TIMER -----
+  // Base address at $8010, offsets as follows : -
+  //  ctl: 0
+  // 	st : 1
+  // 	config00 .. config 32 : 2 to 13
+  wire timer_rst_n = ~reset;
+  wire timer_cs = (AB >= 16'h8010 && AB <= 16'h801D);
+  wire timer_we = WE & RDY & ~reset;
+  wire [3:0] timer_addr = AB[3:0];
+  wire [7:0] timer_din = DO;
+  wire [7:0] timer_dout;
+  wire timer_irq_n;
+  timer6502 #( .CLK_HZ(1_000_000) ) timer (
+  	.clk  (clk),
+  	.rst_n(timer_rst_n),
+  	.cs   (timer_cs),
+  	.we   (timer_we),
+  	.addr (timer_addr),
+  	.din  (timer_din),
+  	.dout (timer_dout),
+  	.irq_n(timer_irq_n)
+  );
+
+  // Connect the timer's irq pin to the core's IRQ pin
+  always @(posedge clk) begin IRQ <= ~timer_irq_n; end	// Core's IRQ is level sensitive
+
   // Connect fault -> NMI (faultb is active low; Arlet's NMI is active high)
-  always @(posedge clk)
-    NMI <= ~faultb;	// NOTE: Arlet's nmi is POSEDGE triggered, so invert the active-low faultb
+  always @(posedge clk) NMI <= ~faultb;	// NOTE: Arlet's nmi is POSEDGE triggered, so invert the active-low faultb
 
   // ---- Memory ----
   reg [7:0] ram [0:32767];        // physical, 32KB
@@ -115,10 +140,8 @@ module tb;
   task automatic disk_do_read;
     integer i, n;
     begin
-      if (disk_fd == 0) begin
-        disk_err <= 1;
-      end else begin
-        // Seek to LBA * 512
+      if (disk_fd == 0) begin disk_err <= 1; end
+      else begin // Seek to LBA * 512
         $fseek(disk_fd, disk_lba * 512, 0);   // SEEK_SET = 0
         for (i = 0; i < 512; i = i + 1) begin
           n = $fgetc(disk_fd);
@@ -135,12 +158,10 @@ module tb;
   task automatic disk_do_write;
     integer i;
     begin
-      if (disk_fd == 0) begin
-        disk_err <= 1;
-      end else begin
+      if (disk_fd == 0) begin disk_err <= 1; end
+      else begin
         $fseek(disk_fd, disk_lba * 512, 0);
-        for (i = 0; i < 512; i = i + 1)
-          $fwrite(disk_fd, "%c", disk_buf[i]);
+        for (i = 0; i < 512; i = i + 1) $fwrite(disk_fd, "%c", disk_buf[i]);
         $fflush(disk_fd);
         disk_err <= 0;
       end
@@ -159,6 +180,7 @@ module tb;
   // Combinational read mux (async memory model)
   always @(*) begin
     if (AB[15] == 1'b0) DI = ram_q;                                   // translated by MMU
+    else if ((AB & 16'hFFF0) == 16'h8010) DI = timer_dout;						// timer's data out line
     else if ((AB & 16'hFFC0) == 16'h8080) DI = mmu_data_out;          // MMU control regs $8080-$80BF
     else if (AB == 16'h8000) DI = acia_rx_data;
     else if (AB == 16'h8001) DI = {6'b0, acia_tx_ready, acia_rx_valid};
@@ -230,8 +252,7 @@ module tb;
 
   // Auto increment the data pointer after any data access
   always @(posedge clk) begin
-    if (RDY & ~reset & (AB == 16'h80E6) && disk_dptr < 511)
-      disk_dptr <= disk_dptr + 1;
+  	if (RDY & ~reset & (AB == 16'h80E6) && disk_dptr < 511) disk_dptr <= disk_dptr + 1;
   end
 
   // Clear RX-valid after CPU reads data register

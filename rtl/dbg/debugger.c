@@ -111,6 +111,8 @@ static void dbgRemoveBreakpoint(char **cmdtoks, size_t cmdtoksiz);
 // Variables
 static bool dbgInitialised, dbgQuitting, dbgStepFirst, dbgTermDirty,
     dbgInterrupted;
+static bool dbgSkipBpOnce;       // set by `c`: don't re-stop on the breakpoint we resume from
+static uint16_t dbgSkipBpAddr;   // the PC we resumed from
 static runmode_t dbgMode;
 static int dbgStepsLeft;
 static uint32_t dbgFetchCount;
@@ -216,7 +218,11 @@ static bool dbgShouldStop(uint8_t opcode) {
       dbgConsoleEcho("\tInterrupted (Ctrl-C)\n");
       return true;
     }
-    if (dbgCheckIfAtBp(dbgPc, 0, &bpnum)) {
+    // After `c`, ignore the breakpoint we resumed from until the PC moves on.
+    // The same boundary can be polled more than once, so one skip is not enough.
+    if (dbgSkipBpOnce && dbgPc != dbgSkipBpAddr)
+      dbgSkipBpOnce = false;
+    if (!dbgSkipBpOnce && dbgCheckIfAtBp(dbgPc, 0, &bpnum)) {
       char buf[32];
       memset(buf, 0, sizeof(buf));
       dbgDisasmInstrFromPc(dbgPc, dbgRead6502, buf);
@@ -560,6 +566,8 @@ static void dbgAddBp(char **cmdtoks, size_t cmdtoksiz) {
 static void dbgRunDbgCont(void) {
   noecho();
   dbgInterrupted = false;
+  dbgSkipBpOnce = true;
+  dbgSkipBpAddr = dbgPc; // the breakpoint we are standing on, if any
   dbgConsoleEcho("\n\tGoing into continuous execution\n");
   dbgMode = DBG_RUNNING;
 }

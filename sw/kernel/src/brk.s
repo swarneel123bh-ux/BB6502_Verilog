@@ -6,6 +6,9 @@
 .export _brk_handler
 .import _syscall_dispatch
 .import do_yield
+.import save_process
+.import restore_process
+.import calc_proc_ptr
 .include "include/devices.s"
 .include "include/zp.s"
 
@@ -50,9 +53,12 @@
 ; 		; <exec resumes from here>
 ; ================
 _brk_handler:
+				sta ZP_IRQ_A				; Push A,X and Y to kernel stack because we cannot lose these
+				stx ZP_IRQ_X				; registers while calculating the stack address
+				sty ZP_IRQ_Y
 
 				tsx									; X = SP: BRK's frame is at user $0100+SP+1..3. We are in kernel
-										; mode now (no translation), so reach it through the user's page
+														; mode now (no translation), so reach it through the user's page
 
 				lda MMU_PPN0				; Load the page number to get stack access
 				asl
@@ -111,6 +117,71 @@ _brk_handler:
 				jsr _syscall_dispatch	; Handle syscall
 				jmp (RET_USER_MODE)						; back to the process (ret_user_mode, $FFF8)
 
+
+
+
 				; ---- IRQ PATH -----
 irq_path:
-				jmp (RET_USER_MODE)						; nothing raises IRQ yet: just return to the process
+				sei
+				jsr calc_proc_ptr
+				jsr save_process
+
+				; Find out what device caused the irq (right now only a timer can cause one
+				lda TIMER_ST        ; one read: snapshot the flags
+    		and #$0F            ; drop ST[4] (BUSY), keep the four channel flags
+    		tay 								; keep a copy for the acknowledge write
+
+    		lsr                 ; bit 0 -> carry
+    		bcc @not_timer0
+    		jmp handle_timer0
+@not_timer0:
+    		lsr                 ; bit 1 -> carry
+    		bcc @not_timer1
+      	jmp handle_timer1
+@not_timer1:
+      	lsr                 ; bit 2 -> carry
+      	bcc @not_timer2
+      	jmp handle_timer2
+@not_timer2:
+      	lsr                 ; bit 3 -> carry
+      	bcc @not_timer3
+      	jmp handle_timer3
+@not_timer3:										; The int was not due to a timer, nothing else is there, so just return
+				jmp restore_process
+
+
+; --------- IRQ HANDLERS ------------
+
+; Handle the correct timer's interrpt
+; Later, we jump to a subroutine the kernel registers
+handle_timer0:
+				pha
+				lda #$01									; Writing status register with the correct bit set should clear the int
+				sta TIMER_ST
+				inc ZP_TIMER_INT_COUNT0
+				pla
+				jmp restore_process
+
+handle_timer1:
+				pha
+				lda #$02									; Writing status register with the correct bit set should clear the int
+				sta TIMER_ST
+				inc ZP_TIMER_INT_COUNT1
+				pla
+				jmp restore_process
+
+handle_timer2:
+				pha
+				lda #$04									; Writing status register with the correct bit set should clear the int
+				sta TIMER_ST
+				inc ZP_TIMER_INT_COUNT2
+				pla
+				jmp restore_process
+
+handle_timer3:
+				pha
+				lda #$08									; Writing status register with the correct bit set should clear the int
+				sta TIMER_ST
+				inc ZP_TIMER_INT_COUNT3
+				pla
+				jmp restore_process

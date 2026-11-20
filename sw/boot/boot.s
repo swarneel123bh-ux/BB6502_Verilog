@@ -53,7 +53,7 @@ STAGE_ADDR		= $0200		; KERNEL MUST BE LOADED AT THIS ADDRESS
 ret_user_mode:
 				stz MMU_CTRL	; Reset to user mode (this runs without translation because in kernel mode)
 				rti						; fetched from ROM (never translated), but the MMU is in user mode
-										; now, so its stack pulls go through ppn[0]: it pops the PROCESS's frame
+											; now, so its stack pulls go through ppn[0]: it pops the PROCESS's frame
 nmi_handler:
 irq_handler:					; (unused label: IRQ shares the BRK vector, brk_trampoline)
 				rti

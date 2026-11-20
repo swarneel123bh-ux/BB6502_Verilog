@@ -12,10 +12,52 @@
 #include "include/proc.h"
 #include "include/devices.h"
 
+#define ZP_IRQ_A	          ((volatile uint8_t*) 0x0040)				// Save-point for A when IRQ happens
+#define ZP_IRQ_X	          ((volatile uint8_t*) 0x0041)				// Save-point for A when IRQ happens
+#define ZP_IRQ_Y	          ((volatile uint8_t*) 0x0042)				// Save-point for A when IRQ happens
+#define ZP_TIMER_INT_COUNT0 ((volatile uint8_t*) 0x0060) 				// How many interrupts have happend, i dont think its necessary to track this
+#define ZP_TIMER_INT_COUNT1 ((volatile uint8_t*) 0x0062) 				// but i need to test the timers out too so im using this temporarily
+#define ZP_TIMER_INT_COUNT2 ((volatile uint8_t*) 0x0064) 				// later on, the kernel defines how to handle, and brk.s simply points to that
+#define ZP_TIMER_INT_COUNT3 ((volatile uint8_t*) 0x0067) 				// subroutine
+
 // _brk_handler
 // Kernel must install its address at $00FE/$00FF after boot: the IRQ/BRK
 // vector ($FFFE, in ROM) points at brk_trampoline, which does JMP ($00FE).
 extern void brk_handler(void);	// <- in brk.s
+
+// Minimum timer period. Each interrupt takes ~1100 clocks to service (save and
+// restore of the page table), so a Hz timer must not fire faster than that or the
+// process never gets to run. 100 Hz = 10000 clocks, a 10x margin.
+#define TIMER_MAX_HZ 100
+
+// ---- Timer macros -------------------------------------------------------
+// Channel n's 3 config bytes are at TIMER_CONF00 + 3*n (24-bit value).
+// Byte 2 is written last: that write starts the Hz divider.
+#define TIMER_CONF_BASE 0x8012
+#define TIMER_CONF_WRITE(ch, v) do { \
+	uint32_t _v = (uint32_t)(v); \
+	volatile uint8_t *_c = (volatile uint8_t*)(TIMER_CONF_BASE + 3*(ch)); \
+	_c[0] = (uint8_t)(_v & 0xFF); \
+	_c[1] = (uint8_t)((_v >> 8) & 0xFF); \
+	_c[2] = (uint8_t)((_v >> 16) & 0xFF); \
+} while (0)
+
+// Run channel ch at hz times per second (Hz mode), clamped to TIMER_MAX_HZ.
+#define TIMER_SET_HZ(ch, hz) do { \
+	uint32_t _h = ((uint32_t)(hz) > TIMER_MAX_HZ) ? TIMER_MAX_HZ : (uint32_t)(hz); \
+	*TIMER_CTL |= (uint8_t)(1 << (ch)); \
+	TIMER_CONF_WRITE(ch, _h); \
+} while (0)
+
+// Run channel ch every ms milliseconds (ms mode, up to 16777 s).
+#define TIMER_SET_MS(ch, ms) do { \
+	*TIMER_CTL &= (uint8_t)~(1 << (ch)); \
+	TIMER_CONF_WRITE(ch, (ms)); \
+} while (0)
+
+// Timer IRQ enables are CTL bits 4..7 (one per channel). Keep them all on.
+#define TIMER_IRQ_ENABLE_ALL 0xF0
+
 
 int main(void) {
 	uint8_t i;
@@ -42,6 +84,19 @@ int main(void) {
   	k_print("FAT boot signature MISSING\r\n");
   }
 
+  // Timer interrupts test
+
+  *ZP_TIMER_INT_COUNT0 = 0;							// Set counters to 0
+  *ZP_TIMER_INT_COUNT1 = 0;
+  *ZP_TIMER_INT_COUNT2 = 0;
+  *ZP_TIMER_INT_COUNT3 = 0;
+  *TIMER_CTL = TIMER_IRQ_ENABLE_ALL;     // every channel may interrupt; modes set below
+  TIMER_SET_MS(0, 100);        // timer 0: every 100 ms
+  TIMER_SET_MS(1, 1000);       // timer 1: every 1 s
+  TIMER_SET_MS(2, 10000);      // timer 2: every 10 s
+  TIMER_SET_MS(3, 15000);      // timer 3: every 15 s
+
+  // Cooperative multitasking test
   k_print("Loading hello.c\r\n");
   spawn_bbx(200, 1, 1);    // hello.c at lba 200
   k_print("Loading hello2.c\r\n");
@@ -53,4 +108,5 @@ int main(void) {
  	k_print("Program returned, hanging\n");
   while(1);
   return 0;
+
 }

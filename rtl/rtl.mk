@@ -13,7 +13,7 @@ SDL_CFLAGS     := $(shell pkg-config --cflags sdl2 SDL2_ttf 2>/dev/null || echo 
 SDL_LDFLAGS    := $(shell pkg-config --libs   sdl2 SDL2_ttf 2>/dev/null || echo "-L/opt/homebrew/lib -lSDL2 -lSDL2_ttf")
 
 CPU_SRCS       := $(wildcard $(CPU_DIR)/*.v)
-RTL_SRCS       := $(CPU_SRCS) $(TB_FILE) $(RTL_DIR)/mmu6502.v
+RTL_SRCS       := $(CPU_SRCS) $(TB_FILE) $(RTL_DIR)/mmu6502.v $(RTL_DIR)/timer6502.v
 
 # Debugger: VPI module (C + ncurses) built with iverilog-vpi
 IVERILOG_VPI   := iverilog-vpi
