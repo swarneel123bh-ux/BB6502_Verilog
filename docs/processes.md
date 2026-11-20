@@ -45,7 +45,14 @@ process B: PLY PLX PLA ; RTS              (back in B's sys_yield stub)
 
 Only SP and the page table are saved in the table. Everything else (A, X, Y, flags, PC) lives on the process's own stack page, which is mapped back in when the page table is restored.
 
-This is **cooperative**: a process that never calls `sys_yield` keeps the CPU forever. The timers ([timers.md](timers.md)) raise interrupts, but those interrupts do not switch processes yet, so preemption is still to do.
+Processes switch in two ways:
+
+- **Cooperative:** `sys_yield` switches in `do_yield`. A process that never yields only gives up the CPU when it is preempted.
+- **Preemptive:** timer 0 ([timers.md](timers.md)) is the preemption tick. Its interrupt runs `do_preempt`, which saves the running process the same way `do_yield` does, then picks the next `WAITING` process and restores it. The interrupted instruction resumes exactly where it stopped, because the interrupt frame stays on that process's stack.
+
+Every switch saves SP, the page table, and A, X and Y (offsets 46–48). The restore loads A, X and Y from the block before `RET_USER_MODE`, so a process sees its registers unchanged across a switch. The register test (below) checks that.
+
+The timers 1–3 interrupts return to the same process.
 
 ## Limitations
 

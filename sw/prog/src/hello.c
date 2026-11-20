@@ -7,7 +7,7 @@ int main(void) {
 	int i = 0;
 	while (1) {
 		sys_puts("Proc1:");
-		sys_putc(i + '0');
+		sys_putc('0' + i % 10);
 		sys_puts("\r\n");
 		i ++;
 		// sys_yield();
